@@ -1,8 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:remindx/auth_service.dart';
 import '../constants.dart';
-import '../services/auth_service.dart';
-import 'A3_Login.dart';
+import 'app_widget.dart';
 
 class RegisterPage extends StatefulWidget {
   final VoidCallback onLogin;

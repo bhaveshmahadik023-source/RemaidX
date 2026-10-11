@@ -57,18 +57,6 @@ class _RegisterPageState extends State<RegisterPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: kTeal,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: widget.onLogin,
-        ),
-        title: const Text('Create account',
-            style: TextStyle(fontWeight: FontWeight.w700)),
-      ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(

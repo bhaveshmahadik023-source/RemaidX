@@ -1,10 +1,8 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'firebase_options.dart';
 import 'constants.dart';
-import 'pages/home_page.dart';
-import 'pages/auth_switcher.dart';
+import 'pages/auth_gate.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,16 +22,8 @@ class RemindXApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: kTeal),
         useMaterial3: true,
       ),
-      home: StreamBuilder<User?>(
-        stream: FirebaseAuth.instance.authStateChanges(),
-        builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) {
-            return const Scaffold(
-                body: Center(child: CircularProgressIndicator()));
-          }
-          return snap.hasData ? const HomePage() : const AuthSwitcher();
-        },
-      ),
+      // AuthGate decides: logged out -> Welcome/Login, logged in -> MainShell
+      home: const AuthGate(),
     );
   }
 }

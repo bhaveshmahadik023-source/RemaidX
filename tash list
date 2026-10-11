@@ -1,0 +1,12 @@
+[33m69c2930[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mA5_permissions[m[33m, [m[1;31morigin/A5_permissions[m[33m)[m HEAD@{0}: commit (merge): Merge latest main branch changes
+[33mf9f0389[m[33m ([m[1;31morigin/login_page[m[33m, [m[1;32mlogin_page[m[33m)[m HEAD@{1}: reset: moving to HEAD
+[33mf9f0389[m[33m ([m[1;31morigin/login_page[m[33m, [m[1;32mlogin_page[m[33m)[m HEAD@{2}: checkout: moving from master to A5_permissions
+[33m93f2e70[m[33m ([m[1;32mmaster[m[33m)[m HEAD@{3}: checkout: moving from A5_permissions to master
+[33mf9f0389[m[33m ([m[1;31morigin/login_page[m[33m, [m[1;32mlogin_page[m[33m)[m HEAD@{4}: checkout: moving from login_page to A5_permissions
+[33mf9f0389[m[33m ([m[1;31morigin/login_page[m[33m, [m[1;32mlogin_page[m[33m)[m HEAD@{5}: commit: Add permission setup and app flow
+[33m036b004[m HEAD@{6}: commit (merge): Merge team main into login_page
+[33m9c8adb4[m HEAD@{7}: commit: login_page
+[33m93f2e70[m[33m ([m[1;32mmaster[m[33m)[m HEAD@{8}: reset: moving to HEAD
+[33m93f2e70[m[33m ([m[1;32mmaster[m[33m)[m HEAD@{9}: checkout: moving from login_page to login_page
+[33m93f2e70[m[33m ([m[1;32mmaster[m[33m)[m HEAD@{10}: checkout: moving from master to login_page
+[33m93f2e70[m[33m ([m[1;32mmaster[m[33m)[m HEAD@{11}: commit (initial): Initial commit: auth + firebase setup

@@ -15,7 +15,7 @@ class _AuthSwitcherState extends State<AuthSwitcher> {
   Widget build(BuildContext context) {
     return _showRegister
         ? RegisterPage(onLogin: () => setState(() => _showRegister = false))
-        : LoginPage(
+        : A3_Login(
             onCreateAccount: () => setState(() => _showRegister = true));
   }
 }

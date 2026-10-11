@@ -1,264 +1,336 @@
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import '../constants.dart';
-import '../services/auth_service.dart';
+import 'package:remindx/auth_service.dart';
+import 'package:remindx/pages/B2_Home_empty.dart';
 
+class A3_Login extends StatefulWidget {
+  final VoidCallback? onCreateAccount;
 
-class LoginPage extends StatefulWidget {
-  final VoidCallback onCreateAccount;
-  const LoginPage({super.key, required this.onCreateAccount});
+  const A3_Login({
+    super.key,
+    this.onCreateAccount,
+  });
+
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  State<A3_Login> createState() => _A3_LoginState();
 }
 
-class _LoginPageState extends State<LoginPage> {
-  final _email = TextEditingController();
-  final _pass = TextEditingController();
-  final _auth = AuthService();
-  bool _hide = true;
-  bool _loading = false;
+class _A3_LoginState extends State<A3_Login> {
+  final _formKey = GlobalKey<FormState>();
+  final emailController = TextEditingController();
+  final passwordController = TextEditingController();
 
-  void _msg(String m) =>
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  bool isLoading = false;
+  bool obscurePassword = true;
 
-  Future<void> _run(Future<void> Function() action) async {
-    setState(() => _loading = true);
+  Future<void> handleLogin() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => isLoading = true);
+
     try {
-      await action();
+      await AuthService().login(
+        emailController.text.trim(),
+        passwordController.text,
+      );
+
+      if (!mounted) return;
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const HomePage(),
+        ),
+      );
     } on FirebaseAuthException catch (e) {
-      _msg(e.message ?? 'Something went wrong');
+      if (!mounted) return;
+
+      String message;
+
+      switch (e.code) {
+        case 'invalid-credential':
+        case 'wrong-password':
+        case 'user-not-found':
+          message = 'Invalid email or password.';
+          break;
+        case 'invalid-email':
+          message = 'Please enter a valid email address.';
+          break;
+        case 'too-many-requests':
+          message = 'Too many attempts. Please try again later.';
+          break;
+        case 'network-request-failed':
+          message = 'Network error. Check your internet connection.';
+          break;
+        default:
+          message = e.message ?? 'Login failed. Please try again.';
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: Colors.red.shade700,
+        ),
+      );
     } catch (e) {
-      _msg(e.toString());
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Something went wrong. Please try again.'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
     }
-    if (mounted) setState(() => _loading = false);
   }
 
-  Future<void> _forgot() async {
-    if (_email.text.trim().isEmpty) {
-      _msg('Enter your email first');
-      return;
-    }
-    await _run(() async {
-      await _auth.resetPassword(_email.text);
-      _msg('Password reset email sent');
-    });
+  @override
+  void dispose() {
+    emailController.dispose();
+    passwordController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    const teal = Color(0xFF117C75);
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF7FAF9),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.all(24),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 30),
-                  Center(
-                    child: Container(
-                      width: 72,
-                      height: 72,
-                      decoration: const BoxDecoration(
-                          color: kTealLight, shape: BoxShape.circle),
-                      child: const Icon(Icons.location_on_outlined,
-                          color: kTeal, size: 32),
+              constraints: const BoxConstraints(maxWidth: 430),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Icon(
+                      Icons.location_on_rounded,
+                      color: teal,
+                      size: 76,
                     ),
-                  ),
-                  const SizedBox(height: 18),
-                  const Center(
-                    child: Text('Welcome back',
-                        style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.w700,
-                            color: kTextDark)),
-                  ),
-                  const SizedBox(height: 6),
-                  const Center(
-                    child: Text('Log in to see your reminders',
-                        style: TextStyle(color: kTextGrey, fontSize: 15)),
-                  ),
-                  const SizedBox(height: 30),
-                  const FieldLabel('Email'),
-                  AppField(
-                    controller: _email,
-                    hint: 'name@example.com',
-                    icon: Icons.chat_bubble_outline,
-                    keyboard: TextInputType.emailAddress,
-                  ),
-                  const SizedBox(height: 16),
-                  const FieldLabel('Password'),
-                  AppField(
-                    controller: _pass,
-                    hint: 'Password',
-                    icon: Icons.lock_outline,
-                    obscure: _hide,
-                    suffix: IconButton(
-                      icon: Icon(
-                          _hide
-                              ? Icons.visibility_outlined
-                              : Icons.visibility_off_outlined,
-                          color: kTextGrey),
-                      onPressed: () => setState(() => _hide = !_hide),
-                    ),
-                  ),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: _forgot,
-                      child: const Text('Forgot password?',
-                          style: TextStyle(
-                              color: kTeal, fontWeight: FontWeight.w700)),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  PrimaryButton(
-                    text: 'Log in',
-                    loading: _loading,
-                    onTap: () =>
-                        _run(() => _auth.login(_email.text, _pass.text)),
-                  ),
-                  const SizedBox(height: 22),
-                  Row(children: const [
-                    Expanded(child: Divider(color: kBorder)),
-                    Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 14),
-                      child: Text('or', style: TextStyle(color: kTextGrey)),
-                    ),
-                    Expanded(child: Divider(color: kBorder)),
-                  ]),
-                  const SizedBox(height: 22),
-                  SizedBox(
-                    height: 56,
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: kBorder),
-                        shape: const StadiumBorder(),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'ReachReminder',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 29,
+                        fontWeight: FontWeight.bold,
+                        color: teal,
                       ),
-                      onPressed:
-                          _loading ? null : () => _run(_auth.googleLogin),
-                      child: const Text('Continue with Google',
-                          style: TextStyle(
-                              color: kTextDark,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700)),
                     ),
-                  ),
-                  const SizedBox(height: 60),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text('New here?',
-                          style: TextStyle(color: kTextGrey)),
-                      TextButton(
-  onPressed: widget.onCreateAccount,
-  child: const Text('Create account',
-      style: TextStyle(color: kTeal, fontWeight: FontWeight.w700)),
-),
-                    ],
-                  ),
-                ],
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Never forget what matters, wherever you go.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.black54,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 38),
+                    const Text(
+                      'Welcome Back!',
+                      style: TextStyle(
+                        fontSize: 25,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Login to your account to continue.',
+                      style: TextStyle(color: Colors.black54),
+                    ),
+                    const SizedBox(height: 26),
+
+                    // Email
+                    TextFormField(
+                      controller: emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      textInputAction: TextInputAction.next,
+                      decoration: InputDecoration(
+                        labelText: 'Email Address',
+                        hintText: 'Enter your email',
+                        prefixIcon: const Icon(Icons.email_outlined),
+                        filled: true,
+                        fillColor: Colors.white,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      validator: (value) {
+                        final email = value?.trim() ?? '';
+
+                        if (email.isEmpty) {
+                          return 'Please enter your email.';
+                        }
+
+                        if (!RegExp(
+                          r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
+                        ).hasMatch(email)) {
+                          return 'Enter a valid email address.';
+                        }
+
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 18),
+
+                    // Password
+                    TextFormField(
+                      controller: passwordController,
+                      obscureText: obscurePassword,
+                      textInputAction: TextInputAction.done,
+                      onFieldSubmitted: (_) => handleLogin(),
+                      decoration: InputDecoration(
+                        labelText: 'Password',
+                        hintText: 'Enter your password',
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        suffixIcon: IconButton(
+                          onPressed: () {
+                            setState(() {
+                              obscurePassword = !obscurePassword;
+                            });
+                          },
+                          icon: Icon(
+                            obscurePassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                          ),
+                        ),
+                        filled: true,
+                        fillColor: Colors.white,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter your password.';
+                        }
+                        return null;
+                      },
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: () async {
+                          final email = emailController.text.trim();
+
+                          if (email.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Enter your email to reset your password.',
+                                ),
+                              ),
+                            );
+                            return;
+                          }
+
+                          try {
+                            await AuthService().resetPassword(email);
+
+                            if (!context.mounted) return;
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Password reset email sent if the account exists.',
+                                ),
+                              ),
+                            );
+                          } on FirebaseAuthException catch (e) {
+                            if (!context.mounted) return;
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  e.message ?? 'Could not send reset email.',
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                        child: const Text(
+                          'Forgot Password?',
+                          style: TextStyle(color: teal),
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 18),
+
+                    // Login button
+                    SizedBox(
+                      height: 54,
+                      child: ElevatedButton(
+                        onPressed: isLoading ? null : handleLogin,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: teal,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: isLoading
+                            ? const SizedBox(
+                                height: 24,
+                                width: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text(
+                                'Login',
+                                style: TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 22),
+
+                    // Signup navigation
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text("Don't have an account?"),
+                        TextButton(
+                          onPressed: () {
+                            // Replace with your existing signup page.
+                            Navigator.pop(context);
+                          },
+                          child: const Text(
+                            'Sign Up',
+                            style: TextStyle(
+                              color: teal,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-// ---------- Shared widgets (register page pan hech vaparto) ----------
-
-class FieldLabel extends StatelessWidget {
-  final String text;
-  const FieldLabel(this.text, {super.key});
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
-        child: Text(text,
-            style: const TextStyle(color: kTextGrey, fontSize: 14)),
-      );
-}
-
-class AppField extends StatelessWidget {
-  final TextEditingController controller;
-  final String hint;
-  final IconData icon;
-  final bool obscure;
-  final Widget? suffix;
-  final TextInputType? keyboard;
-
-  const AppField({
-    super.key,
-    required this.controller,
-    required this.hint,
-    required this.icon,
-    this.obscure = false,
-    this.suffix,
-    this.keyboard,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      obscureText: obscure,
-      keyboardType: keyboard,
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: const TextStyle(color: Color(0xFF9AA0A6)),
-        prefixIcon: Icon(icon, color: kTextGrey),
-        suffixIcon: suffix,
-        contentPadding: const EdgeInsets.symmetric(vertical: 18),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: kBorder),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: kTeal, width: 1.6),
-        ),
-      ),
-    );
-  }
-}
-
-class PrimaryButton extends StatelessWidget {
-  final String text;
-  final VoidCallback onTap;
-  final bool loading;
-  const PrimaryButton(
-      {super.key,
-      required this.text,
-      required this.onTap,
-      this.loading = false});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 56,
-      width: double.infinity,
-      child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: kTeal,
-          foregroundColor: Colors.white,
-          shape: const StadiumBorder(),
-          elevation: 0,
-        ),
-        onPressed: loading ? null : onTap,
-        child: loading
-            ? const SizedBox(
-                width: 22,
-                height: 22,
-                child: CircularProgressIndicator(
-                    strokeWidth: 2.5, color: Colors.white))
-            : Text(text,
-                style: const TextStyle(
-                    fontSize: 17, fontWeight: FontWeight.w700)),
       ),
     );
   }

@@ -2,7 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'auth_switcher.dart';
-import 'home_page.dart';
+import 'B2_Home_empty.dart';
 import 'main_shell.dart';
 import 'A5_Permissions.dart';
 

@@ -1,6 +1,7 @@
-```dart
+
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:remindx/pages/D1_shop%20search_form.dart';
 import 'package:remindx/pages/auth_gate.dart';
 
 import 'firebase_options.dart';
@@ -30,8 +31,7 @@ class RemindXApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: const AuthGate(),
+      home: const ShopSearchPage(),
     );
   }
 }
-```

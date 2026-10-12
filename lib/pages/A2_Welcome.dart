@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../constants.dart';
-import 'A3_Login.dart'; // PrimaryButton
+import '../widgets/common.dart';// PrimaryButton
 
 class WelcomePage extends StatelessWidget {
   final VoidCallback onGetStarted;

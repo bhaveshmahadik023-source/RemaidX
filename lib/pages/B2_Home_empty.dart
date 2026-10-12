@@ -1,5 +1,7 @@
 
+import 'D1_shop search_form.dart';
 import 'package:flutter/material.dart';
+
 
 const Color primaryTeal = Color(0xFF117C75);
 const Color lightTeal = Color(0xFFE5F4F1);
@@ -32,9 +34,21 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  void selectReminder(String title) {
-    showMessage('$title selected. Connection will be added later.');
+  
+void selectReminder(String title) {
+  if (title == 'Find shops for me') {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const ShopSearchPage(),
+      ),
+    );
+    return;
   }
+
+  showMessage('$title selected. Connection will be added later.');
+}
+
 
   @override
   Widget build(BuildContext context) {

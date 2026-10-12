@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../constants.dart';
-import 'A3_Login.dart'; // PrimaryButton
+import '../widgets/common.dart'; // PrimaryButton
 
 class PermissionsPage extends StatefulWidget {
   final VoidCallback onDone;

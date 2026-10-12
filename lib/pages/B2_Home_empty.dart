@@ -1,9 +1,10 @@
-
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:remindx/pages/C1_Place_form.dart';
 import 'package:remindx/services/notification.dart';
+
+import 'D1_shop search_form.dart';
 
 const Color primaryTeal = Color(0xFF117C75);
 const Color lightTeal = Color(0xFFE5F4F1);
@@ -29,6 +30,8 @@ class _HomePageState extends State<HomePage> {
   }
 
   void showMessage(String message) {
+    if (!mounted) return;
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -36,19 +39,6 @@ class _HomePageState extends State<HomePage> {
         backgroundColor: primaryTeal,
       ),
     );
-  }
-
-  Future<void> testNotification() async {
-    try {
-      await NotificationService.showNotification(
-        title: 'RemindX Test',
-        body: 'Notifications are working!',
-      );
-    } catch (e) {
-      if (mounted) {
-        showMessage('Notification error: $e');
-      }
-    }
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> get remindersStream {
@@ -71,13 +61,9 @@ class _HomePageState extends State<HomePage> {
           .doc(id)
           .delete();
 
-      if (mounted) {
-        showMessage('Reminder deleted successfully.');
-      }
+      showMessage('Reminder deleted successfully.');
     } catch (e) {
-      if (mounted) {
-        showMessage('Could not delete reminder: $e');
-      }
+      showMessage('Could not delete reminder: $e');
     }
   }
 
@@ -90,8 +76,102 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  void selectReminder(String title) {
-    showMessage('$title will be connected later.');
+  void openShopSearch() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const ShopSearchPage(),
+      ),
+    );
+  }
+
+  // Plus button opens the add-reminder bottom sheet.
+  void openAddReminderSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(24),
+        ),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 42,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFD8DEDE),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  'What do you want to add?',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF111827),
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                ReminderOption(
+                  icon: Icons.location_on_outlined,
+                  title: 'I know the place',
+                  subtitle: 'Choose a place and your task',
+                  iconColor: primaryTeal,
+                  backgroundColor: lightTeal,
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    openPlaceForm();
+                  },
+                ),
+
+                const SizedBox(height: 12),
+
+                ReminderOption(
+                  icon: Icons.storefront_outlined,
+                  title: 'Find shops for me',
+                  subtitle: 'Tell us what to buy and the city',
+                  iconColor: const Color(0xFF6155CC),
+                  backgroundColor: const Color(0xFFEFEDFF),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    openShopSearch();
+                  },
+                ),
+
+                const SizedBox(height: 12),
+
+                ReminderOption(
+                  icon: Icons.alarm,
+                  title: 'Daily alarm',
+                  subtitle: 'Repeat a task at a fixed time',
+                  iconColor: const Color(0xFFBF7900),
+                  backgroundColor: const Color(0xFFFFEDCC),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    showMessage(
+                      'Daily alarm screen will be connected later.',
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -193,8 +273,7 @@ class _HomePageState extends State<HomePage> {
               );
             }
 
-            if (snapshot.connectionState ==
-                ConnectionState.waiting) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(
                 child: CircularProgressIndicator(
                   color: primaryTeal,
@@ -203,20 +282,16 @@ class _HomePageState extends State<HomePage> {
             }
 
             final documents = snapshot.data?.docs ?? [];
+            final query = searchController.text.toLowerCase();
 
             final reminders = documents.where((doc) {
               final data = doc.data();
-
               final title =
                   (data['title'] ?? '').toString().toLowerCase();
-
               final place =
                   (data['placeName'] ?? '').toString().toLowerCase();
 
-              final query = searchController.text.toLowerCase();
-
-              return title.contains(query) ||
-                  place.contains(query);
+              return title.contains(query) || place.contains(query);
             }).toList();
 
             reminders.sort((a, b) {
@@ -264,17 +339,17 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
 
-      // Only one FloatingActionButton is used.
-      // Temporarily used to test notifications.
+      // The extra notification bell has been removed.
+      // The plus button retains its add-reminder bottom sheet.
       floatingActionButton: selectedIndex == 0
           ? FloatingActionButton(
-              onPressed: testNotification,
+              onPressed: openAddReminderSheet,
               backgroundColor: primaryTeal,
               foregroundColor: Colors.white,
               shape: const CircleBorder(),
-              tooltip: 'Test notification',
+              tooltip: 'Add reminder',
               child: const Icon(
-                Icons.notifications_active,
+                Icons.add,
                 size: 32,
               ),
             )
@@ -387,6 +462,7 @@ class _HomePageState extends State<HomePage> {
           ReminderOption(
             icon: Icons.location_on_outlined,
             title: 'I know the place',
+            subtitle: 'Choose a place and your task',
             iconColor: primaryTeal,
             backgroundColor: lightTeal,
             onTap: openPlaceForm,
@@ -395,17 +471,21 @@ class _HomePageState extends State<HomePage> {
           ReminderOption(
             icon: Icons.storefront_outlined,
             title: 'Find shops for me',
+            subtitle: 'Tell us what to buy and the city',
             iconColor: const Color(0xFF6155CC),
             backgroundColor: const Color(0xFFEFEDFF),
-            onTap: () => selectReminder('Find shops for me'),
+            onTap: openShopSearch,
           ),
           const SizedBox(height: 12),
           ReminderOption(
             icon: Icons.alarm,
             title: 'Daily alarm',
+            subtitle: 'Repeat a task at a fixed time',
             iconColor: const Color(0xFFBF7900),
             backgroundColor: const Color(0xFFFFEDCC),
-            onTap: () => selectReminder('Daily alarm'),
+            onTap: () => showMessage(
+              'Daily alarm screen will be connected later.',
+            ),
           ),
         ],
       ),
@@ -426,7 +506,9 @@ class _HomePageState extends State<HomePage> {
       margin: const EdgeInsets.only(bottom: 14),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(18),
-        side: const BorderSide(color: Color(0xFFD8DEDE)),
+        side: const BorderSide(
+          color: Color(0xFFD8DEDE),
+        ),
       ),
       child: Padding(
         padding: const EdgeInsets.all(15),
@@ -556,6 +638,7 @@ class _HomePageState extends State<HomePage> {
 class ReminderOption extends StatelessWidget {
   final IconData icon;
   final String title;
+  final String subtitle;
   final Color iconColor;
   final Color backgroundColor;
   final VoidCallback onTap;
@@ -564,6 +647,7 @@ class ReminderOption extends StatelessWidget {
     super.key,
     required this.icon,
     required this.title,
+    required this.subtitle,
     required this.iconColor,
     required this.backgroundColor,
     required this.onTap,
@@ -578,10 +662,10 @@ class ReminderOption extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(19),
         child: Container(
-          constraints: const BoxConstraints(minHeight: 70),
+          constraints: const BoxConstraints(minHeight: 86),
           padding: const EdgeInsets.symmetric(
             horizontal: 10,
-            vertical: 8,
+            vertical: 12,
           ),
           decoration: BoxDecoration(
             border: Border.all(
@@ -606,13 +690,26 @@ class ReminderOption extends StatelessWidget {
               ),
               const SizedBox(width: 15),
               Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.black,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF656565),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const Icon(

@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:remindx/pages/app_widget.dart';
 import '../constants.dart';
- 
+import '../widgets/common.dart'; // PrimaryButton
+import '../widgets/common.dart'; // PrimaryButton
+import '../widgets/common.dart';
 
 class PermissionsPage extends StatefulWidget {
   final VoidCallback onDone;
@@ -35,11 +37,11 @@ class _PermissionsPageState extends State<PermissionsPage> {
   }
 
   Future<void> _ask(Future<void> Function() request) async {
-    if (!kIsWeb) await request();{
-      await request();
-    }
-    await _refresh();
+  if (!kIsWeb) {
+    await request();
   }
+  await _refresh();
+}
 
   @override
   Widget build(BuildContext context) {
@@ -122,7 +124,10 @@ class _PermissionsPageState extends State<PermissionsPage> {
                     ),
                   ),
                   const SizedBox(height: 28),
-                  PrimaryButton(text: 'Continue', onTap: widget.onDone),
+                                  ElevatedButton(
+                    onPressed: widget.onDone,
+                    child: const Text('Continue'),
+                  ),
                 ],
               ),
             ),

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:remindx/pages/app_widget.dart';
 import '../constants.dart';
-import 'A3_Login.dart'; // PrimaryButton
+import '../widgets/common.dart';// PrimaryButton
 
 class WelcomePage extends StatelessWidget {
   final VoidCallback onGetStarted;
@@ -52,7 +52,10 @@ class WelcomePage extends StatelessWidget {
                       title: 'Daily alarm',
                       sub: 'Repeat a task at a fixed time'),
                   const SizedBox(height: 18),
-                  PrimaryButton(text: 'Get started', onTap: onGetStarted),
+                   ElevatedButton(
+                      onPressed: onGetStarted,
+                      child: const Text('Get started'),
+                    ),
                   const SizedBox(height: 10),
                   TextButton(
                     onPressed: onLogin,

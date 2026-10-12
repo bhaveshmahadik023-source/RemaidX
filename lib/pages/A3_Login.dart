@@ -2,7 +2,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:remindx/auth_service.dart';
-import 'package:remindx/pages/B2_Home_empty.dart';
 
 class A3_Login extends StatefulWidget {
   final VoidCallback? onCreateAccount;
@@ -35,14 +34,8 @@ class _A3_LoginState extends State<A3_Login> {
         passwordController.text,
       );
 
-      if (!mounted) return;
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const HomePage(),
-        ),
-      );
+      // AuthGate observes FirebaseAuth.authStateChanges().
+      // It handles permissions and navigation to HomePage.
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
 
@@ -54,15 +47,19 @@ class _A3_LoginState extends State<A3_Login> {
         case 'user-not-found':
           message = 'Invalid email or password.';
           break;
+
         case 'invalid-email':
           message = 'Please enter a valid email address.';
           break;
+
         case 'too-many-requests':
           message = 'Too many attempts. Please try again later.';
           break;
+
         case 'network-request-failed':
           message = 'Network error. Check your internet connection.';
           break;
+
         default:
           message = e.message ?? 'Login failed. Please try again.';
       }
@@ -70,7 +67,7 @@ class _A3_LoginState extends State<A3_Login> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(message),
-          backgroundColor: Colors.red.shade700,
+          backgroundColor: Colors.red,
         ),
       );
     } catch (e) {
@@ -85,6 +82,49 @@ class _A3_LoginState extends State<A3_Login> {
       if (mounted) {
         setState(() => isLoading = false);
       }
+    }
+  }
+
+  Future<void> handleForgotPassword() async {
+    final email = emailController.text.trim();
+
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Enter your email to reset your password.'),
+        ),
+      );
+      return;
+    }
+
+    try {
+      await AuthService().resetPassword(email);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Password reset email sent if the account exists.',
+          ),
+        ),
+      );
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message ?? 'Could not send reset email.'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not send password reset email.'),
+        ),
+      );
     }
   }
 
@@ -118,6 +158,7 @@ class _A3_LoginState extends State<A3_Login> {
                       size: 76,
                     ),
                     const SizedBox(height: 12),
+
                     const Text(
                       'ReachReminder',
                       textAlign: TextAlign.center,
@@ -128,6 +169,7 @@ class _A3_LoginState extends State<A3_Login> {
                       ),
                     ),
                     const SizedBox(height: 8),
+
                     const Text(
                       'Never forget what matters, wherever you go.',
                       textAlign: TextAlign.center,
@@ -137,6 +179,7 @@ class _A3_LoginState extends State<A3_Login> {
                       ),
                     ),
                     const SizedBox(height: 38),
+
                     const Text(
                       'Welcome Back!',
                       style: TextStyle(
@@ -145,13 +188,13 @@ class _A3_LoginState extends State<A3_Login> {
                       ),
                     ),
                     const SizedBox(height: 8),
+
                     const Text(
                       'Login to your account to continue.',
                       style: TextStyle(color: Colors.black54),
                     ),
                     const SizedBox(height: 26),
 
-                    // Email
                     TextFormField(
                       controller: emailController,
                       keyboardType: TextInputType.emailAddress,
@@ -184,7 +227,6 @@ class _A3_LoginState extends State<A3_Login> {
                     ),
                     const SizedBox(height: 18),
 
-                    // Password
                     TextFormField(
                       controller: passwordController,
                       obscureText: obscurePassword,
@@ -216,63 +258,25 @@ class _A3_LoginState extends State<A3_Login> {
                         if (value == null || value.isEmpty) {
                           return 'Please enter your password.';
                         }
+
                         return null;
                       },
                     ),
-
                     const SizedBox(height: 10),
 
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
-                        onPressed: () async {
-                          final email = emailController.text.trim();
-
-                          if (email.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Enter your email to reset your password.',
-                                ),
-                              ),
-                            );
-                            return;
-                          }
-
-                          try {
-                            await AuthService().resetPassword(email);
-
-                            if (!context.mounted) return;
-
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Password reset email sent if the account exists.',
-                                ),
-                              ),
-                            );
-                          } on FirebaseAuthException catch (e) {
-                            if (!context.mounted) return;
-
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  e.message ?? 'Could not send reset email.',
-                                ),
-                              ),
-                            );
-                          }
-                        },
+                        onPressed:
+                            isLoading ? null : handleForgotPassword,
                         child: const Text(
                           'Forgot Password?',
                           style: TextStyle(color: teal),
                         ),
                       ),
                     ),
-
                     const SizedBox(height: 18),
 
-                    // Login button
                     SizedBox(
                       height: 54,
                       child: ElevatedButton(
@@ -302,24 +306,24 @@ class _A3_LoginState extends State<A3_Login> {
                               ),
                       ),
                     ),
-
                     const SizedBox(height: 22),
 
-                    // Signup navigation
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         const Text("Don't have an account?"),
                         TextButton(
-                      onPressed: widget.onCreateAccount,
-                        child: const Text(
-                              'Sign Up',
-                        style: TextStyle(
-                        color: teal,
-                         fontWeight: FontWeight.bold,
+                          onPressed: isLoading
+                              ? null
+                              : widget.onCreateAccount,
+                          child: const Text(
+                            'Sign Up',
+                            style: TextStyle(
+                              color: teal,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
-                     ),
-                   ),
                       ],
                     ),
                   ],

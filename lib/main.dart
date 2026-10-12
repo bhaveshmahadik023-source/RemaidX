@@ -1,10 +1,10 @@
-```dart
-import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:remindx/pages/auth_gate.dart';
 
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/material.dart';
 import 'firebase_options.dart';
 import 'constants.dart';
+import 'pages/auth_gate.dart';
+import 'services/notification.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -12,7 +12,7 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-
+  await NotificationService.initialize();
   runApp(const RemindXApp());
 }
 
@@ -34,4 +34,3 @@ class RemindXApp extends StatelessWidget {
     );
   }
 }
-```

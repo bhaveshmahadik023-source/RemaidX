@@ -311,18 +311,15 @@ class _A3_LoginState extends State<A3_Login> {
                       children: [
                         const Text("Don't have an account?"),
                         TextButton(
-                          onPressed: () {
-                            // Replace with your existing signup page.
-                            Navigator.pop(context);
-                          },
-                          child: const Text(
-                            'Sign Up',
-                            style: TextStyle(
-                              color: teal,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                      onPressed: widget.onCreateAccount,
+                        child: const Text(
+                              'Sign Up',
+                        style: TextStyle(
+                        color: teal,
+                         fontWeight: FontWeight.bold,
                         ),
+                     ),
+                   ),
                       ],
                     ),
                   ],

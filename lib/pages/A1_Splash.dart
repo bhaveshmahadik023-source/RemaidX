@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:remindx/pages/auth_switcher.dart';
 import '../constants.dart';
 import 'auth_gate.dart';
 
@@ -15,7 +16,7 @@ class _SplashPageState extends State<SplashPage> {
     Future.delayed(const Duration(seconds: 2), () {
       if (!mounted) return;
       Navigator.pushReplacement(
-          context, MaterialPageRoute(builder: (_) => const AuthGate()));
+          context, MaterialPageRoute(builder: (_) => const AuthSwitcher()));
     });
   }
 

@@ -98,10 +98,10 @@ class _MapPickerPageState extends State<MapPickerPage> {
     if (r == null || !mounted) return;
     _req++; // cancels any running name lookup
     setState(() {
-      _pin = r.latLng;
-      _place = r; // the search result already has a name
-    });
-    _map.move(r.latLng, 16);
+  _pin = LatLng(r.lat, r.lng);
+  _place = r;
+});
+_map.move(LatLng(r.lat, r.lng), 16);
   }
 
   @override
@@ -232,7 +232,7 @@ class _MapPickerPageState extends State<MapPickerPage> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Text(_place?.label ?? 'Finding address...',
+                 Text(_place?.name ?? 'Finding address...',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(

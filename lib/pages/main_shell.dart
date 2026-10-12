@@ -1,7 +1,8 @@
+import 'package:remindx/auth_service.dart';
 import 'package:flutter/material.dart';
 import '../constants.dart';
 import '../models/place.dart';
-import '../services/auth_service.dart';
+
 import 'B4_Map_overview.dart';
 import 'C2_Map_picker.dart';
 import 'C3_Search_results.dart';

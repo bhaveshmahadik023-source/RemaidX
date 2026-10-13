@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:remindx/pages/C1_Place_form.dart';
-import 'package:remindx/services/notification.dart';
-
+import 'package:remindx/pages/E1_Alarm_form.dart';
 import 'D1_shop search_form.dart';
 
 const Color primaryTeal = Color(0xFF117C75);
@@ -159,10 +158,14 @@ class _HomePageState extends State<HomePage> {
                   subtitle: 'Repeat a task at a fixed time',
                   iconColor: const Color(0xFFBF7900),
                   backgroundColor: const Color(0xFFFFEDCC),
-                  onTap: () {
+                 onTap: () {
                     Navigator.pop(sheetContext);
-                    showMessage(
-                      'Daily alarm screen will be connected later.',
+
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const DailyAlarmPage(),
+                      ),
                     );
                   },
                 ),
@@ -483,9 +486,14 @@ class _HomePageState extends State<HomePage> {
             subtitle: 'Repeat a task at a fixed time',
             iconColor: const Color(0xFFBF7900),
             backgroundColor: const Color(0xFFFFEDCC),
-            onTap: () => showMessage(
-              'Daily alarm screen will be connected later.',
-            ),
+           onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const DailyAlarmPage(),
+              ),
+            );
+          },
           ),
         ],
       ),

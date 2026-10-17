@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:remindx/pages/G1_Setting.dart';
 import 'package:remindx/pages/auth_gate.dart';
 
 import 'firebase_options.dart';

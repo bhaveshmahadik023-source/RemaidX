@@ -11,9 +11,10 @@ class Reminder {
   final String placeName; // e.g. "Phoenix Mall, Pune"
   final String alertType; // "message" or "ring"
   final String status; // "active", "triggered", "done" or "paused"
+  final String sound; // alarm sound key (daily alarms), e.g. "morning_bell"
   final double? lat, lng; // empty for daily alarms
   final int radiusM; // alert distance in meters
-  final int snoozeMin; // snooze time in minutes
+  final int snoozeMin; // snooze time in minutes (0 = snooze off)
   final int? hour, minute; // only for daily alarms
   final List<int> days; // only for daily alarms (1 = Monday ... 7 = Sunday)
 
@@ -25,6 +26,7 @@ class Reminder {
     required this.placeName,
     required this.alertType,
     required this.status,
+    required this.sound,
     required this.radiusM,
     required this.snoozeMin,
     required this.days,
@@ -46,6 +48,7 @@ class Reminder {
       placeName: m['placeName'] ?? '',
       alertType: m['alertType'] ?? 'message',
       status: m['status'] ?? 'active',
+      sound: m['sound'] ?? 'morning_bell',
       lat: (m['lat'] as num?)?.toDouble(),
       lng: (m['lng'] as num?)?.toDouble(),
       radiusM: (m['radiusM'] as num?)?.toInt() ?? 700,
@@ -64,4 +67,22 @@ class Reminder {
   String get radiusLabel => radiusM >= 1000
       ? '${(radiusM / 1000).toStringAsFixed(radiusM % 1000 == 0 ? 0 : 1)} km'
       : '$radiusM m';
+
+  // "7:30 AM" for daily alarms
+  String get timeLabel {
+    final h = hour ?? 0;
+    final m = (minute ?? 0).toString().padLeft(2, '0');
+    final h12 = h % 12 == 0 ? 12 : h % 12;
+    return '$h12:$m ${h < 12 ? 'AM' : 'PM'}';
+  }
+
+  // "Every day", "Weekdays", "Weekends" or "Mon, Wed"
+  String get daysLabel {
+    final d = [...days]..sort();
+    if (d.isEmpty || d.length >= 7) return 'Every day';
+    if (d.join() == '12345') return 'Weekdays';
+    if (d.join() == '67') return 'Weekends';
+    const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return d.map((x) => names[x - 1]).join(', ');
+  }
 }

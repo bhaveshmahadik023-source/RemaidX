@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:remindx/pages/G1_Setting.dart';
@@ -7,6 +6,7 @@ import 'package:remindx/pages/auth_gate.dart';
 import 'firebase_options.dart';
 import 'constants.dart';
 import 'services/notification.dart';
+import 'services/alarm_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,6 +17,9 @@ Future<void> main() async {
 
   await NotificationService.initialize();
 
+  // Initialize alarm and local notification service
+  await AlarmService.init();
+
   runApp(const RemindXApp());
 }
 
@@ -26,6 +29,7 @@ class RemindXApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: AlarmService.navigatorKey,
       title: 'RemindX',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
@@ -34,7 +38,7 @@ class RemindXApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: const AuthGate()
+      home: const AuthGate(),
     );
   }
 }

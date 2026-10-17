@@ -8,3 +8,4 @@ const kBorder = Color(0xFFD9DEDD);
 const kPurpleLight = Color(0xFFEEEDFE);
 const kAmberLight = Color(0xFFFDECC8);
 const kAmberDark = Color(0xFF7A4A05);
+const kAmber = Color(0xFFB7791F);

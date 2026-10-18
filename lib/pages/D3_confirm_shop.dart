@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -63,6 +62,12 @@ class _ConfirmShopPageState extends State<ConfirmShopPage> {
         'placeName': widget.shop.name,
         'address': widget.shop.address,
         'city': widget.shop.city,
+
+        // Shop location. The reminder card needs these to open the map
+        // (same field names as the "I know the place" reminders).
+        'lat': widget.shop.lat,
+        'lng': widget.shop.lng,
+
         'radiusMeters': _radiusMeters.round(),
         'radiusM': _radiusMeters.round(),
         'alertType': _alertType,

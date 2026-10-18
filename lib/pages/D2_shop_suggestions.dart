@@ -1,7 +1,5 @@
-
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 
 import '../services/shop_service.dart';
 import 'D3_confirm_shop.dart';
@@ -26,11 +24,10 @@ class ShopSuggestionsPage extends StatefulWidget {
       _ShopSuggestionsPageState();
 }
 
-class _ShopSuggestionsPageState
-    extends State<ShopSuggestionsPage> {
+class _ShopSuggestionsPageState extends State<ShopSuggestionsPage> {
   final ShopService _service = ShopService();
-  final MapController _mapController = MapController();
 
+  gmaps.GoogleMapController? _mapController;
   bool _nearestFirst = true;
   late Future<List<Shop>> _shopsFuture;
 
@@ -38,6 +35,12 @@ class _ShopSuggestionsPageState
   void initState() {
     super.initState();
     _loadShops();
+  }
+
+  @override
+  void dispose() {
+    _mapController?.dispose();
+    super.dispose();
   }
 
   void _loadShops() {
@@ -56,11 +59,28 @@ class _ShopSuggestionsPageState
     });
   }
 
-  void _showShopOnMap(Shop shop) {
-    _mapController.move(
-      LatLng(shop.lat, shop.lng),
-      16,
+  Future<void> _showShopOnMap(Shop shop) async {
+    await _mapController?.animateCamera(
+      gmaps.CameraUpdate.newCameraPosition(
+        gmaps.CameraPosition(
+          target: gmaps.LatLng(shop.lat, shop.lng),
+          zoom: 16,
+        ),
+      ),
     );
+  }
+
+  Set<gmaps.Marker> _markersFor(List<Shop> shops) {
+    return shops.map((shop) {
+      return gmaps.Marker(
+        markerId: gmaps.MarkerId(shop.id.toString()),
+        position: gmaps.LatLng(shop.lat, shop.lng),
+        infoWindow: gmaps.InfoWindow(title: shop.name),
+        icon: gmaps.BitmapDescriptor.defaultMarkerWithHue(
+          gmaps.BitmapDescriptor.hueViolet,
+        ),
+      );
+    }).toSet();
   }
 
   @override
@@ -70,16 +90,13 @@ class _ShopSuggestionsPageState
       appBar: AppBar(
         backgroundColor: _teal,
         foregroundColor: Colors.white,
-        title: Text('${widget.category} shops'),
+        title: Text('${widget.category} shops TEST'),
       ),
       body: FutureBuilder<List<Shop>>(
         future: _shopsFuture,
         builder: (context, snapshot) {
-          if (snapshot.connectionState ==
-              ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
           }
 
           if (snapshot.hasError) {
@@ -97,13 +114,14 @@ class _ShopSuggestionsPageState
                     const SizedBox(height: 12),
                     const Text(
                       'Could not load real shops.',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: TextStyle(fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 8),
-                    const Text(
-                      'Check your internet connection or try again later.',
+                    // Shows the real reason (key missing, API blocked, etc.).
+                    Text(
+                      snapshot.error
+                          .toString()
+                          .replaceFirst('Exception: ', ''),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 12),
@@ -120,49 +138,29 @@ class _ShopSuggestionsPageState
           }
 
           final shops = snapshot.data ?? [];
-
           final initialCenter = shops.isNotEmpty
-              ? LatLng(shops.first.lat, shops.first.lng)
-              : const LatLng(18.5204, 73.8567);
+              ? gmaps.LatLng(shops.first.lat, shops.first.lng)
+              : const gmaps.LatLng(18.5204, 73.8567);
 
           return Column(
             children: [
               SizedBox(
                 height: 240,
                 width: double.infinity,
-                child: FlutterMap(
-                  mapController: _mapController,
-                  options: MapOptions(
-                    initialCenter: initialCenter,
-                    initialZoom: 13,
+                child: gmaps.GoogleMap(
+                  initialCameraPosition: gmaps.CameraPosition(
+                    target: initialCenter,
+                    zoom: 13,
                   ),
-                  children: [
-                    TileLayer(
-                      urlTemplate:
-                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'com.example.remindx',
-                    ),
-                    MarkerLayer(
-                      markers: shops.map((shop) {
-                        return Marker(
-                          point: LatLng(shop.lat, shop.lng),
-                          width: 44,
-                          height: 52,
-                          child: Tooltip(
-                            message: shop.name,
-                            child: const Icon(
-                              Icons.location_on,
-                              color: _purple,
-                              size: 42,
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ],
+                  onMapCreated: (controller) {
+                    _mapController = controller;
+                  },
+                  markers: _markersFor(shops),
+                  myLocationButtonEnabled: false,
+                  zoomControlsEnabled: true,
+                  mapToolbarEnabled: false,
                 ),
               ),
-
               Expanded(
                 child: ListView(
                   padding: const EdgeInsets.all(16),
@@ -175,7 +173,6 @@ class _ShopSuggestionsPageState
                       ),
                     ),
                     const SizedBox(height: 10),
-
                     Wrap(
                       spacing: 8,
                       children: [
@@ -192,7 +189,6 @@ class _ShopSuggestionsPageState
                       ],
                     ),
                     const SizedBox(height: 10),
-
                     if (shops.isEmpty)
                       const Padding(
                         padding: EdgeInsets.only(top: 32),
@@ -202,7 +198,6 @@ class _ShopSuggestionsPageState
                           textAlign: TextAlign.center,
                         ),
                       ),
-
                     ...shops.map(
                       (shop) => Card(
                         elevation: 0,
@@ -248,10 +243,9 @@ class _ShopSuggestionsPageState
                         ),
                       ),
                     ),
-
                     const SizedBox(height: 8),
                     const Text(
-                      'Map and shop data provided by OpenStreetMap. '
+                      'Shop data provided by Google Maps. '
                       'Some shops may not be listed.',
                       textAlign: TextAlign.center,
                       style: TextStyle(

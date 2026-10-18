@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:remindx/pages/C1_Place_form.dart';
 import 'package:remindx/pages/E1_Alarm_form.dart';
 import 'D1_shop search_form.dart';
+import 'reminder_map_screen.dart';
 
 const Color primaryTeal = Color(0xFF117C75);
 const Color lightTeal = Color(0xFFE5F4F1);
@@ -335,6 +336,9 @@ class _HomePageState extends State<HomePage> {
                   radius: data['radiusM'],
                   alertType:
                       (data['alertType'] ?? 'Message').toString(),
+                  lat: (data['lat'] as num?)?.toDouble(),
+                  lng: (data['lng'] as num?)?.toDouble(),
+                  status: (data['status'] ?? 'active').toString(),
                 );
               },
             );
@@ -500,6 +504,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  // Reminder card. Tap it to open the map screen.
   Widget _reminderCard({
     required String id,
     required String title,
@@ -507,10 +512,14 @@ class _HomePageState extends State<HomePage> {
     required String address,
     required dynamic radius,
     required String alertType,
+    required double? lat,
+    required double? lng,
+    required String status,
   }) {
     return Card(
       color: Colors.white,
       elevation: 1,
+      clipBehavior: Clip.antiAlias,
       margin: const EdgeInsets.only(bottom: 14),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(18),
@@ -518,75 +527,128 @@ class _HomePageState extends State<HomePage> {
           color: Color(0xFFD8DEDE),
         ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(15),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: const BoxDecoration(
-                color: lightTeal,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.location_on_outlined,
-                color: primaryTeal,
-                size: 27,
+      child: InkWell(
+        onTap: () {
+          if (lat == null || lng == null) {
+            showMessage('This reminder has no location.');
+            return;
+          }
+
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ReminderMapScreen(
+                title: title,
+                placeName: place,
+                lat: lat,
+                lng: lng,
+                radiusM: (radius as num?)?.toInt() ?? 700,
               ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 5),
-                  Text(
-                    place,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      color: primaryTeal,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  if (address.isNotEmpty) ...[
-                    const SizedBox(height: 4),
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(15),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: const BoxDecoration(
+                  color: lightTeal,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.location_on_outlined,
+                  color: primaryTeal,
+                  size: 27,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      address,
+                      title,
                       style: const TextStyle(
-                        fontSize: 13,
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      place,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        color: primaryTeal,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (address.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        address,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Colors.black54,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 8),
+                    Text(
+                      'Radius: ${radius ?? 700} m • Alert: $alertType',
+                      style: const TextStyle(
+                        fontSize: 12,
                         color: Colors.black54,
                       ),
                     ),
+                    if (status == 'done') ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE3F5E8),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.check_circle,
+                              size: 15,
+                              color: Color(0xFF2E7D32),
+                            ),
+                            SizedBox(width: 5),
+                            Text(
+                              'Completed',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF2E7D32),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
-                  const SizedBox(height: 8),
-                  Text(
-                    'Radius: ${radius ?? 700} m • Alert: $alertType',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.black54,
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
-            IconButton(
-              tooltip: 'Delete reminder',
-              onPressed: () => deleteReminder(id),
-              icon: const Icon(
-                Icons.delete_outline,
-                color: Colors.redAccent,
+              IconButton(
+                tooltip: 'Delete reminder',
+                onPressed: () => deleteReminder(id),
+                icon: const Icon(
+                  Icons.delete_outline,
+                  color: Colors.redAccent,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

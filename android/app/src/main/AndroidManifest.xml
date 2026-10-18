@@ -28,14 +28,22 @@
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
-            android:name="flutterEmbedding"
-            android:value="2" />
+    android:name="com.google.android.geo.API_KEY"
+    android:value="AIzaSyBZQ_lI0BHgAOrEVfTY7Q6W9w9-pFfe1Ds" />
+
+<meta-data
+    android:name="flutterEmbedding"
+    android:value="2" />
+
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
          https://developer.android.com/reference/android/content/Intent#ACTION_PROCESS_TEXT.
 
          In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
+   <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />      
+<uses-permission android:name="android.permission.VIBRATE" />
     <queries>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>

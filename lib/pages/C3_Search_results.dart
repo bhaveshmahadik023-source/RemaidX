@@ -9,6 +9,7 @@ import 'C2_Map_picker.dart';
 
 // C3: Choose location by searching.
 // The user can: type a name, use GPS, or open the map.
+// While typing, Google shows smart suggestions.
 // When the user picks a place, this screen closes and returns a PickedPlace.
 class SearchResultsPage extends StatefulWidget {
   // false when opened from C2, so we do not open the map again (no loop).
@@ -28,10 +29,29 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
   final _ctrl = TextEditingController(); // text in the search box
   Timer? _timer; // used to wait before searching (debounce)
   int _req = 0; // request number, used to ignore old (late) answers
-  List<PickedPlace> _results = [];
+
+  // Google session token: groups typing + place pick into one billing session.
+  String _session = PlacesService.newSessionToken();
+
+  // User's position, used so nearby places come first.
+  LatLng? _near;
+
+  List<PlaceSuggestion> _suggestions = []; // shown while typing
+  List<PickedPlace> _results = []; // shown after pressing search on keyboard
   bool _loading = false; // true while searching
   bool _locating = false; // true while reading GPS
+  bool _picking = false; // true while loading the chosen suggestion
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _near = widget.mapStart;
+    // Read GPS silently, only to rank nearby places higher.
+    LocationService.current().then((ll) {
+      if (mounted) _near ??= ll;
+    }).catchError((_) {});
+  }
 
   @override
   void dispose() {
@@ -47,10 +67,11 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
   void _onChanged(String q) {
     _timer?.cancel();
 
-    // Less than 3 letters: clear the list, do not search.
-    if (q.trim().length < 3) {
+    // Less than 2 letters: clear the list, do not search.
+    if (q.trim().length < 2) {
       _req++; // makes any running search "old", so its answer is ignored
       setState(() {
+        _suggestions = [];
         _results = [];
         _loading = false;
         _error = null;
@@ -58,23 +79,28 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
       return;
     }
 
-    // Wait 700 ms after the user stops typing, then search.
-    // Nominatim allows only 1 request per second, so we must not search on every letter.
-    _timer = Timer(const Duration(milliseconds: 700), () => _search(q.trim()));
+    // Google allows fast requests, so a short wait is enough.
+    _timer =
+        Timer(const Duration(milliseconds: 300), () => _suggest(q.trim()));
   }
 
-  Future<void> _search(String q) async {
+  // Smart suggestions while typing.
+  Future<void> _suggest(String q) async {
     final id = ++_req;
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final r = await PlacesService.search(q);
-      // If the user typed something newer meanwhile, ignore this answer.
+      final s = await PlacesService.suggest(
+        q,
+        near: _near,
+        sessionToken: _session,
+      );
       if (!mounted || id != _req) return;
       setState(() {
-        _results = r;
+        _suggestions = s;
+        _results = [];
         _loading = false;
       });
     } catch (_) {
@@ -83,6 +109,51 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
         _error = 'Could not search. Check your internet.';
         _loading = false;
       });
+    }
+  }
+
+  // Keyboard "search" button: full results with exact positions.
+  Future<void> _search(String q) async {
+    q = q.trim();
+    if (q.length < 2) return;
+    _timer?.cancel();
+
+    final id = ++_req;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final r = await PlacesService.search(q, near: _near);
+      if (!mounted || id != _req) return;
+      setState(() {
+        _results = r;
+        _suggestions = [];
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted || id != _req) return;
+      setState(() {
+        _error = 'Could not search. Check your internet.';
+        _loading = false;
+      });
+    }
+  }
+
+  // User tapped a suggestion: get its exact position and return it.
+  Future<void> _pickSuggestion(PlaceSuggestion s) async {
+    if (_picking) return;
+    setState(() => _picking = true);
+    try {
+      final place = await PlacesService.fromSuggestion(
+        s.placeId,
+        sessionToken: _session,
+      );
+      if (mounted) Navigator.pop(context, place);
+    } catch (_) {
+      _msg('Could not open this place. Try again.');
+    } finally {
+      if (mounted) setState(() => _picking = false);
     }
   }
 
@@ -122,7 +193,7 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final typed = _ctrl.text.trim().length >= 3;
+    final typed = _ctrl.text.trim().length >= 2;
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -138,6 +209,8 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
             constraints: const BoxConstraints(maxWidth: 420),
             child: ListView(
               padding: const EdgeInsets.all(16),
+              keyboardDismissBehavior:
+                  ScrollViewKeyboardDismissBehavior.onDrag,
               children: [
                 const Text('Search',
                     style: TextStyle(
@@ -151,11 +224,24 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
                   controller: _ctrl,
                   autofocus: true,
                   onChanged: _onChanged,
+                  onSubmitted: _search,
+                  textInputAction: TextInputAction.search,
                   style: const TextStyle(fontSize: 15, color: kTextDark),
                   decoration: InputDecoration(
                     hintText: 'Search a place',
                     hintStyle: const TextStyle(color: Color(0xFF9AA5A3)),
                     prefixIcon: const Icon(Icons.search, color: kTextGrey),
+                    suffixIcon: (_loading || _picking)
+                        ? const Padding(
+                            padding: EdgeInsets.all(14),
+                            child: SizedBox(
+                              width: 18,
+                              height: 18,
+                              child:
+                                  CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          )
+                        : null,
                     contentPadding: const EdgeInsets.symmetric(vertical: 14),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
@@ -192,12 +278,22 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
                 ],
                 const SizedBox(height: 24),
 
-                // Results area: loading / error / list / "no results"
-                if (_loading)
-                  const Center(child: CircularProgressIndicator())
-                else if (_error != null)
+                // Suggestions / results / error / "no results"
+                if (_error != null)
                   Text(_error!, style: const TextStyle(color: Colors.red))
-                else if (_results.isNotEmpty) ...[
+                else if (_suggestions.isNotEmpty) ...[
+                  const Text('SUGGESTIONS',
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: kTextGrey)),
+                  const SizedBox(height: 6),
+                  for (final s in _suggestions)
+                    _SuggestionRow(
+                      suggestion: s,
+                      onTap: () => _pickSuggestion(s),
+                    ),
+                ] else if (_results.isNotEmpty) ...[
                   const Text('RESULTS',
                       style: TextStyle(
                           fontSize: 11,
@@ -205,7 +301,7 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
                           color: kTextGrey)),
                   const SizedBox(height: 6),
                   for (final p in _results) _ResultRow(place: p),
-                ] else if (typed)
+                ] else if (typed && !_loading)
                   const Text('No results found',
                       style: TextStyle(color: kTextGrey)),
               ],
@@ -268,6 +364,56 @@ class _ActionCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// One Google suggestion: pin icon + main text + secondary text.
+class _SuggestionRow extends StatelessWidget {
+  final PlaceSuggestion suggestion;
+  final VoidCallback onTap;
+  const _SuggestionRow({required this.suggestion, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Row(
+              children: [
+                const Icon(Icons.location_on_outlined, color: kTeal),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(suggestion.mainText,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: kTextDark)),
+                      if (suggestion.secondaryText.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(suggestion.secondaryText,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: 12, color: kTextGrey)),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const Divider(height: 1, color: Color(0xFFEDF0EF)),
+      ],
     );
   }
 }

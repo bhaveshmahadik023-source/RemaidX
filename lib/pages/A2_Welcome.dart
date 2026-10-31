@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:remindx/pages/app_widget.dart';
 import '../constants.dart';
-import '../widgets/common.dart';// PrimaryButton
 
 class WelcomePage extends StatelessWidget {
   final VoidCallback onGetStarted;

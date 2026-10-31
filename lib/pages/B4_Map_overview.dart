@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gmaps;
 import 'package:latlong2/latlong.dart' as latlong;
@@ -6,7 +8,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../constants.dart';
 import '../models/reminder.dart';
 import '../services/location_service.dart';
-import '../services/reminder_service.dart';
 
 const _kPurple = Color(0xFF534AB7); // Shopping reminders
 
@@ -39,9 +40,27 @@ class _MapOverviewPageState extends State<MapOverviewPage> {
   static const latlong.LatLng _pune =
       latlong.LatLng(18.5204, 73.8567); // Fallback map center
 
-  final _service = ReminderService();
-
   gmaps.GoogleMapController? _mapController;
+
+  // The user's reminders. This reads the SAME place as the Home screen:
+  // collection "reminders", where "userId" is the logged-in user.
+  late final Stream<List<Reminder>> _remindersStream = _openStream();
+
+  Stream<List<Reminder>> _openStream() {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      return Stream.value(<Reminder>[]);
+    }
+
+    return FirebaseFirestore.instance
+        .collection('reminders')
+        .where('userId', isEqualTo: user.uid)
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs.map(Reminder.fromDoc).toList(),
+        );
+  }
 
   String _filter = 'all'; // all / place / shopping
   String? _selectedId; // Reminder shown in the bottom card
@@ -61,8 +80,7 @@ class _MapOverviewPageState extends State<MapOverviewPage> {
   }
 
   // Teal for place, purple for shopping.
-  Color _color(Reminder r) =>
-      r.type == 'shopping' ? _kPurple : kTeal;
+  Color _color(Reminder r) => r.type == 'shopping' ? _kPurple : kTeal;
 
   gmaps.LatLng _toGoogleLatLng(latlong.LatLng point) {
     return gmaps.LatLng(point.latitude, point.longitude);
@@ -198,7 +216,7 @@ class _MapOverviewPageState extends State<MapOverviewPage> {
 
       // Live data from Firestore.
       body: StreamBuilder<List<Reminder>>(
-        stream: _service.stream(),
+        stream: _remindersStream,
         builder: (context, snap) {
           if (snap.hasError) {
             return Center(child: Text('Error: ${snap.error}'));

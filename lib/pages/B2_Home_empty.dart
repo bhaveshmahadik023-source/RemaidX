@@ -3,8 +3,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:remindx/pages/C1_Place_form.dart';
 import 'package:remindx/pages/E1_Alarm_form.dart';
+import 'package:remindx/pages/G1_Setting.dart';
 import 'D1_shop search_form.dart';
 import 'reminder_map_screen.dart';
+import 'package:remindx/services/alarm_service.dart';
+import 'B4_Map_overview.dart';
 
 const Color primaryTeal = Color(0xFF117C75);
 const Color lightTeal = Color(0xFFE5F4F1);
@@ -20,8 +23,7 @@ class _HomePageState extends State<HomePage> {
   int selectedIndex = 0;
   bool isSearching = false;
 
-  final TextEditingController searchController =
-      TextEditingController();
+  final TextEditingController searchController = TextEditingController();
 
   @override
   void dispose() {
@@ -44,9 +46,7 @@ class _HomePageState extends State<HomePage> {
   Stream<QuerySnapshot<Map<String, dynamic>>> get remindersStream {
     final user = FirebaseAuth.instance.currentUser;
 
-    if (user == null) {
-      return const Stream.empty();
-    }
+    if (user == null) return const Stream.empty();
 
     return FirebaseFirestore.instance
         .collection('reminders')
@@ -54,12 +54,66 @@ class _HomePageState extends State<HomePage> {
         .snapshots();
   }
 
-  Future<void> deleteReminder(String id) async {
+  Stream<QuerySnapshot<Map<String, dynamic>>> dailyAlarmsStream(
+    String uid,
+  ) {
+    return FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('reminders')
+        .snapshots();
+  }
+
+  Future<void> completeReminder(String id) async {
     try {
+      final user = FirebaseAuth.instance.currentUser;
+
+      if (user == null) {
+        showMessage('Please log in first.');
+        return;
+      }
+
       await FirebaseFirestore.instance
           .collection('reminders')
           .doc(id)
-          .delete();
+          .update({
+        'status': 'done',
+        'completedAt': FieldValue.serverTimestamp(),
+      });
+
+      showMessage('Task marked as completed.');
+    } catch (e) {
+      showMessage('Could not complete task: $e');
+    }
+  }
+
+  Future<void> deleteReminder(
+    String id, {
+    required bool isDailyAlarm,
+  }) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+
+      if (user == null) {
+        showMessage('Please log in first.');
+        return;
+      }
+
+      if (isDailyAlarm) {
+        await AlarmService.cancel(id);
+
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('reminders')
+            .doc(id)
+            .delete();
+      } else {
+        await FirebaseFirestore.instance
+            .collection('reminders')
+            .doc(id)
+            .delete();
+      }
 
       showMessage('Reminder deleted successfully.');
     } catch (e) {
@@ -85,7 +139,24 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // Plus button opens the add-reminder bottom sheet.
+  void openDailyAlarmForm() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const DailyAlarmPage(),
+      ),
+    );
+  }
+
+  void openSettings() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const G1Settings(),
+      ),
+    );
+  }
+
   void openAddReminderSheet() {
     showModalBottomSheet(
       context: context,
@@ -124,7 +195,6 @@ class _HomePageState extends State<HomePage> {
                   ),
                 ),
                 const SizedBox(height: 20),
-
                 ReminderOption(
                   icon: Icons.location_on_outlined,
                   title: 'I know the place',
@@ -136,9 +206,7 @@ class _HomePageState extends State<HomePage> {
                     openPlaceForm();
                   },
                 ),
-
                 const SizedBox(height: 12),
-
                 ReminderOption(
                   icon: Icons.storefront_outlined,
                   title: 'Find shops for me',
@@ -150,24 +218,16 @@ class _HomePageState extends State<HomePage> {
                     openShopSearch();
                   },
                 ),
-
                 const SizedBox(height: 12),
-
                 ReminderOption(
                   icon: Icons.alarm,
                   title: 'Daily alarm',
                   subtitle: 'Repeat a task at a fixed time',
                   iconColor: const Color(0xFFBF7900),
                   backgroundColor: const Color(0xFFFFEDCC),
-                 onTap: () {
+                  onTap: () {
                     Navigator.pop(sheetContext);
-
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const DailyAlarmPage(),
-                      ),
-                    );
+                    openDailyAlarmForm();
                   },
                 ),
               ],
@@ -180,9 +240,28 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    // Map tab: show the map screen instead of the reminders list.
+    if (selectedIndex == 1) {
+      return MapOverviewPage(
+        showNav: true,
+        onTab: (index) {
+          if (index == 2) {
+            setState(() {
+              selectedIndex = 0;
+            });
+            openSettings();
+            return;
+          }
+
+          setState(() {
+            selectedIndex = index;
+          });
+        },
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.white,
-
       appBar: AppBar(
         automaticallyImplyLeading: false,
         backgroundColor: primaryTeal,
@@ -253,6 +332,7 @@ class _HomePageState extends State<HomePage> {
             onPressed: () {
               setState(() {
                 isSearching = !isSearching;
+
                 if (!isSearching) {
                   searchController.clear();
                 }
@@ -268,99 +348,17 @@ class _HomePageState extends State<HomePage> {
       ),
 
       body: SafeArea(
-        child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: remindersStream,
-          builder: (context, snapshot) {
-            if (snapshot.hasError) {
-              return const Center(
-                child: Text('Unable to load reminders.'),
-              );
-            }
-
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(
-                child: CircularProgressIndicator(
-                  color: primaryTeal,
-                ),
-              );
-            }
-
-            final documents = snapshot.data?.docs ?? [];
-            final query = searchController.text.toLowerCase();
-
-            final reminders = documents.where((doc) {
-              final data = doc.data();
-              final title =
-                  (data['title'] ?? '').toString().toLowerCase();
-              final place =
-                  (data['placeName'] ?? '').toString().toLowerCase();
-
-              return title.contains(query) || place.contains(query);
-            }).toList();
-
-            reminders.sort((a, b) {
-              final aTime = a.data()['createdAt'];
-              final bTime = b.data()['createdAt'];
-
-              if (aTime is Timestamp && bTime is Timestamp) {
-                return bTime.compareTo(aTime);
-              }
-
-              return 0;
-            });
-
-            if (documents.isEmpty) {
-              return _emptyState();
-            }
-
-            if (reminders.isEmpty) {
-              return const Center(
-                child: Text('No matching reminders found.'),
-              );
-            }
-
-            return ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 18, 16, 100),
-              itemCount: reminders.length,
-              itemBuilder: (context, index) {
-                final doc = reminders[index];
-                final data = doc.data();
-
-                return _reminderCard(
-                  id: doc.id,
-                  title: (data['title'] ?? 'Untitled reminder')
-                      .toString(),
-                  place: (data['placeName'] ?? 'Unknown place')
-                      .toString(),
-                  address: (data['address'] ?? '').toString(),
-                  radius: data['radiusM'],
-                  alertType:
-                      (data['alertType'] ?? 'Message').toString(),
-                  lat: (data['lat'] as num?)?.toDouble(),
-                  lng: (data['lng'] as num?)?.toDouble(),
-                  status: (data['status'] ?? 'active').toString(),
-                );
-              },
-            );
-          },
-        ),
+        child: _buildRemindersBody(),
       ),
 
-      // The extra notification bell has been removed.
-      // The plus button retains its add-reminder bottom sheet.
-      floatingActionButton: selectedIndex == 0
-          ? FloatingActionButton(
-              onPressed: openAddReminderSheet,
-              backgroundColor: primaryTeal,
-              foregroundColor: Colors.white,
-              shape: const CircleBorder(),
-              tooltip: 'Add reminder',
-              child: const Icon(
-                Icons.add,
-                size: 32,
-              ),
-            )
-          : null,
+      floatingActionButton: FloatingActionButton(
+        onPressed: openAddReminderSheet,
+        backgroundColor: primaryTeal,
+        foregroundColor: Colors.white,
+        shape: const CircleBorder(),
+        tooltip: 'Add reminder',
+        child: const Icon(Icons.add, size: 32),
+      ),
 
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
@@ -375,7 +373,10 @@ class _HomePageState extends State<HomePage> {
         child: SafeArea(
           top: false,
           child: Padding(
-            padding: const EdgeInsets.only(top: 7, bottom: 4),
+            padding: const EdgeInsets.only(
+              top: 7,
+              bottom: 4,
+            ),
             child: Row(
               children: [
                 _navItem(
@@ -401,9 +402,220 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Widget _buildRemindersBody() {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      return const Center(
+        child: Text('Please log in.'),
+      );
+    }
+
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: remindersStream,
+      builder: (context, placeSnapshot) {
+        if (placeSnapshot.hasError) {
+          return const Center(
+            child: Text('Unable to load reminders.'),
+          );
+        }
+
+        if (placeSnapshot.connectionState ==
+            ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(
+              color: primaryTeal,
+            ),
+          );
+        }
+
+        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: dailyAlarmsStream(user.uid),
+          builder: (context, alarmSnapshot) {
+            if (alarmSnapshot.hasError) {
+              return const Center(
+                child: Text('Unable to load daily alarms.'),
+              );
+            }
+
+            if (alarmSnapshot.connectionState ==
+                ConnectionState.waiting) {
+              return const Center(
+                child: CircularProgressIndicator(
+                  color: primaryTeal,
+                ),
+              );
+            }
+
+            final items = <Map<String, dynamic>>[];
+
+            for (final doc in placeSnapshot.data?.docs ?? []) {
+              items.add({
+                'id': doc.id,
+                'data': doc.data(),
+                'isDailyAlarm': false,
+              });
+            }
+
+            for (final doc in alarmSnapshot.data?.docs ?? []) {
+              items.add({
+                'id': doc.id,
+                'data': doc.data(),
+                'isDailyAlarm': true,
+              });
+            }
+
+            final query = searchController.text.toLowerCase();
+
+            final filtered = items.where((item) {
+              final data =
+                  item['data'] as Map<String, dynamic>;
+
+              final title = (data['title'] ?? '')
+                  .toString()
+                  .toLowerCase();
+
+              final place = (data['placeName'] ?? '')
+                  .toString()
+                  .toLowerCase();
+
+              return title.contains(query) ||
+                  place.contains(query);
+            }).toList();
+
+            filtered.sort((a, b) {
+              final ad =
+                  a['data'] as Map<String, dynamic>;
+              final bd =
+                  b['data'] as Map<String, dynamic>;
+
+              final at = ad['createdAt'];
+              final bt = bd['createdAt'];
+
+              if (at is Timestamp && bt is Timestamp) {
+                return bt.compareTo(at);
+              }
+
+              if (at is Timestamp) return -1;
+              if (bt is Timestamp) return 1;
+
+              return 0;
+            });
+
+            if (items.isEmpty) {
+              return _emptyState();
+            }
+
+            if (filtered.isEmpty) {
+              return const Center(
+                child: Text('No matching reminders found.'),
+              );
+            }
+
+            return ListView.builder(
+              padding: const EdgeInsets.fromLTRB(
+                16,
+                18,
+                16,
+                100,
+              ),
+              itemCount: filtered.length,
+              itemBuilder: (context, index) {
+                final item = filtered[index];
+
+                final data =
+                    item['data'] as Map<String, dynamic>;
+
+                final isDaily =
+                    item['isDailyAlarm'] as bool;
+
+                String? timeLabel;
+                String? daysLabel;
+
+                if (isDaily) {
+                  final hour =
+                      (data['hour'] as num?)?.toInt() ?? 0;
+
+                  final minute =
+                      (data['minute'] as num?)?.toInt() ?? 0;
+
+                  final h12 =
+                      hour % 12 == 0 ? 12 : hour % 12;
+
+                  timeLabel =
+                      '$h12:${minute.toString().padLeft(2, '0')} '
+                      '${hour < 12 ? 'AM' : 'PM'}';
+
+                  final days =
+                      (data['days'] as List<dynamic>? ?? [])
+                          .whereType<num>()
+                          .map((day) => day.toInt())
+                          .toSet();
+
+                  const dayNames = <int, String>{
+                    1: 'Mon',
+                    2: 'Tue',
+                    3: 'Wed',
+                    4: 'Thu',
+                    5: 'Fri',
+                    6: 'Sat',
+                    7: 'Sun',
+                  };
+
+                  if (days.length == 7) {
+                    daysLabel = 'Every day';
+                  } else if (days.isEmpty) {
+                    daysLabel = 'No days selected';
+                  } else {
+                    daysLabel = dayNames.entries
+                        .where(
+                          (entry) => days.contains(entry.key),
+                        )
+                        .map((entry) => entry.value)
+                        .join(', ');
+                  }
+                }
+
+                return _reminderCard(
+                  id: item['id'] as String,
+                  title: (data['title'] ??
+                          'Untitled reminder')
+                      .toString(),
+                  place: isDaily
+                      ? 'Daily alarm'
+                      : (data['placeName'] ??
+                              'Unknown place')
+                          .toString(),
+                  address: (data['address'] ?? '').toString(),
+                  radius: data['radiusM'] ??
+                      data['radiusMeters'],
+                  alertType:
+                      (data['alertType'] ?? 'Message')
+                          .toString(),
+                  lat: (data['lat'] as num?)?.toDouble(),
+                  lng: (data['lng'] as num?)?.toDouble(),
+                  status:
+                      (data['status'] ?? 'active').toString(),
+                  isDailyAlarm: isDaily,
+                  timeLabel: timeLabel,
+                  daysLabel: daysLabel,
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _emptyState() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 25, 20, 100),
+      padding: const EdgeInsets.fromLTRB(
+        20,
+        25,
+        20,
+        100,
+      ),
       child: Column(
         children: [
           const SizedBox(height: 30),
@@ -490,21 +702,13 @@ class _HomePageState extends State<HomePage> {
             subtitle: 'Repeat a task at a fixed time',
             iconColor: const Color(0xFFBF7900),
             backgroundColor: const Color(0xFFFFEDCC),
-           onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const DailyAlarmPage(),
-              ),
-            );
-          },
+            onTap: openDailyAlarmForm,
           ),
         ],
       ),
     );
   }
 
-  // Reminder card. Tap it to open the map screen.
   Widget _reminderCard({
     required String id,
     required String title,
@@ -515,7 +719,12 @@ class _HomePageState extends State<HomePage> {
     required double? lat,
     required double? lng,
     required String status,
+    required bool isDailyAlarm,
+    String? timeLabel,
+    String? daysLabel,
   }) {
+    final isCompleted = status == 'done';
+
     return Card(
       color: Colors.white,
       elevation: 1,
@@ -528,25 +737,30 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
       child: InkWell(
-        onTap: () {
-          if (lat == null || lng == null) {
-            showMessage('This reminder has no location.');
-            return;
-          }
+        onTap: isDailyAlarm
+            ? null
+            : () {
+                if (lat == null || lng == null) {
+                  showMessage(
+                    'This reminder has no location.',
+                  );
+                  return;
+                }
 
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => ReminderMapScreen(
-                title: title,
-                placeName: place,
-                lat: lat,
-                lng: lng,
-                radiusM: (radius as num?)?.toInt() ?? 700,
-              ),
-            ),
-          );
-        },
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ReminderMapScreen(
+                      title: title,
+                      placeName: place,
+                      lat: lat,
+                      lng: lng,
+                      radiusM:
+                          (radius as num?)?.toInt() ?? 700,
+                    ),
+                  ),
+                );
+              },
         child: Padding(
           padding: const EdgeInsets.all(15),
           child: Row(
@@ -555,13 +769,19 @@ class _HomePageState extends State<HomePage> {
               Container(
                 width: 48,
                 height: 48,
-                decoration: const BoxDecoration(
-                  color: lightTeal,
+                decoration: BoxDecoration(
+                  color: isDailyAlarm
+                      ? const Color(0xFFFFEDCC)
+                      : lightTeal,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
-                  Icons.location_on_outlined,
-                  color: primaryTeal,
+                child: Icon(
+                  isDailyAlarm
+                      ? Icons.alarm
+                      : Icons.location_on_outlined,
+                  color: isDailyAlarm
+                      ? const Color(0xFFBF7900)
+                      : primaryTeal,
                   size: 27,
                 ),
               ),
@@ -572,9 +792,15 @@ class _HomePageState extends State<HomePage> {
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 17,
                         fontWeight: FontWeight.bold,
+                        decoration: isCompleted
+                            ? TextDecoration.lineThrough
+                            : TextDecoration.none,
+                        color: isCompleted
+                            ? Colors.black54
+                            : Colors.black,
                       ),
                     ),
                     const SizedBox(height: 5),
@@ -586,7 +812,26 @@ class _HomePageState extends State<HomePage> {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    if (address.isNotEmpty) ...[
+                    if (isDailyAlarm && timeLabel != null) ...[
+                      const SizedBox(height: 5),
+                      Text(
+                        timeLabel,
+                        style: const TextStyle(
+                          fontSize: 21,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFFBF7900),
+                        ),
+                      ),
+                      if (daysLabel != null)
+                        Text(
+                          daysLabel,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Colors.black54,
+                          ),
+                        ),
+                    ],
+                    if (!isDailyAlarm && address.isNotEmpty) ...[
                       const SizedBox(height: 4),
                       Text(
                         address,
@@ -596,15 +841,17 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ),
                     ],
-                    const SizedBox(height: 8),
-                    Text(
-                      'Radius: ${radius ?? 700} m • Alert: $alertType',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.black54,
+                    if (!isDailyAlarm) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Radius: ${radius ?? 700} m • Alert: $alertType',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.black54,
+                        ),
                       ),
-                    ),
-                    if (status == 'done') ...[
+                    ],
+                    if (isCompleted) ...[
                       const SizedBox(height: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(
@@ -639,9 +886,22 @@ class _HomePageState extends State<HomePage> {
                   ],
                 ),
               ),
+              if (!isDailyAlarm && !isCompleted)
+                IconButton(
+                  tooltip: 'Complete task',
+                  onPressed: () => completeReminder(id),
+                  icon: const Icon(
+                    Icons.check_circle_outline,
+                    color: Color(0xFF2E7D32),
+                    size: 28,
+                  ),
+                ),
               IconButton(
                 tooltip: 'Delete reminder',
-                onPressed: () => deleteReminder(id),
+                onPressed: () => deleteReminder(
+                  id,
+                  isDailyAlarm: isDailyAlarm,
+                ),
                 icon: const Icon(
                   Icons.delete_outline,
                   color: Colors.redAccent,
@@ -654,17 +914,24 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _navItem(int index, IconData icon, String label) {
+  Widget _navItem(
+    int index,
+    IconData icon,
+    String label,
+  ) {
     final selected = selectedIndex == index;
 
     return Expanded(
       child: InkWell(
         onTap: () {
-          setState(() => selectedIndex = index);
-
-          if (index != 0) {
-            showMessage('$label screen will be connected later.');
+          if (index == 2) {
+            openSettings();
+            return;
           }
+
+          setState(() {
+            selectedIndex = index;
+          });
         },
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -674,7 +941,9 @@ class _HomePageState extends State<HomePage> {
               width: 76,
               height: 38,
               decoration: BoxDecoration(
-                color: selected ? lightTeal : Colors.transparent,
+                color: selected
+                    ? lightTeal
+                    : Colors.transparent,
                 borderRadius: BorderRadius.circular(25),
               ),
               child: Icon(
@@ -732,7 +1001,9 @@ class ReminderOption extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(19),
         child: Container(
-          constraints: const BoxConstraints(minHeight: 86),
+          constraints: const BoxConstraints(
+            minHeight: 86,
+          ),
           padding: const EdgeInsets.symmetric(
             horizontal: 10,
             vertical: 12,

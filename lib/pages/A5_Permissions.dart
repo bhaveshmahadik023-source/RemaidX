@@ -1,11 +1,8 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:remindx/pages/app_widget.dart';
 import '../constants.dart';
-import '../widgets/common.dart'; // PrimaryButton
-import '../widgets/common.dart'; // PrimaryButton
-import '../widgets/common.dart';
+
 
 class PermissionsPage extends StatefulWidget {
   final VoidCallback onDone;

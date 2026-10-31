@@ -10,8 +10,7 @@ class ShopSearchPage extends StatefulWidget {
   const ShopSearchPage({super.key});
 
   @override
-  State<ShopSearchPage> createState() =>
-      _ShopSearchPageState();
+  State<ShopSearchPage> createState() => _ShopSearchPageState();
 }
 
 class _ShopSearchPageState extends State<ShopSearchPage> {
@@ -42,15 +41,8 @@ class _ShopSearchPageState extends State<ShopSearchPage> {
   }
 
   void _findShops() {
-    if (_cityController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter a city or area.'),
-        ),
-      );
-      return;
-    }
-
+    // City/area is optional because the user can
+    // choose a location using GPS or the map in D2.
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -104,9 +96,7 @@ class _ShopSearchPageState extends State<ShopSearchPage> {
                   selected: selected,
                   selectedColor: const Color(0xFFEFEDFF),
                   side: BorderSide(
-                    color: selected
-                        ? _purple
-                        : Colors.black12,
+                    color: selected ? _purple : Colors.black12,
                   ),
                   onSelected: (_) {
                     setState(() {
@@ -122,18 +112,16 @@ class _ShopSearchPageState extends State<ShopSearchPage> {
             const SizedBox(height: 22),
 
             const Text(
-              'City or area',
+              'City or area (optional)',
               style: TextStyle(color: Colors.black54),
             ),
             const SizedBox(height: 8),
 
             TextField(
               controller: _cityController,
-              textCapitalization:
-                  TextCapitalization.words,
+              textCapitalization: TextCapitalization.words,
               decoration: const InputDecoration(
-                prefixIcon:
-                    Icon(Icons.location_on_outlined),
+                prefixIcon: Icon(Icons.location_on_outlined),
                 border: OutlineInputBorder(),
                 hintText: 'Enter city (e.g. Pune)',
               ),
@@ -156,8 +144,9 @@ class _ShopSearchPageState extends State<ShopSearchPage> {
                   SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Choose a category and city. '
-                      'Shop suggestions currently use demo data.',
+                      'Find nearby shops using your current '
+                      'location or tap anywhere on the map '
+                      'to choose a location manually.',
                       style: TextStyle(color: _purple),
                     ),
                   ),

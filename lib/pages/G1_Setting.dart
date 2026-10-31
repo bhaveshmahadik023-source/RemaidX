@@ -1,10 +1,11 @@
 
 import 'package:app_settings/app_settings.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:remindx/services/settings_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-
+import 'package:remindx/services/geofence_service.dart';
 class G1Settings extends StatefulWidget {
   const G1Settings({super.key});
 
@@ -49,53 +50,80 @@ class _G1SettingsState extends State<G1Settings> {
     _loadSettings();
   }
 
-  // Load saved settings from the phone.
+  // Load settings from Firestore.
   Future<void> _loadSettings() async {
-    final prefs = await SharedPreferences.getInstance();
+    try {
+      final settings = await SettingsService.loadSettings();
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    setState(() {
-      radius = prefs.getInt('default_radius') ?? 700;
-      alertType = prefs.getString('default_alert') ?? 'Message';
-      alarmSound =
-          prefs.getString('alarm_sound') ?? 'Morning bell';
-      loading = false;
-    });
+      setState(() {
+        radius = settings['defaultRadius'] ?? 700;
+        alertType = settings['defaultAlert'] ?? 'Message';
+        alarmSound = settings['alarmSound'] ?? 'Morning bell';
+        loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        loading = false;
+      });
+
+      debugPrint('Error loading settings: $e');
+    }
   }
 
   // Save default radius.
   Future<void> _saveRadius(int value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('default_radius', value);
+    setState(() {
+      radius = value;
+    });
 
-    if (!mounted) return;
-    setState(() => radius = value);
+    try {
+      await SettingsService.saveSettings({
+        'defaultRadius': value,
+      });
+    } catch (e) {
+      debugPrint('Error saving radius: $e');
+    }
   }
 
   // Save default alert.
   Future<void> _saveAlert(String value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('default_alert', value);
+    setState(() {
+      alertType = value;
+    });
 
-    if (!mounted) return;
-    setState(() => alertType = value);
+    try {
+      await SettingsService.saveSettings({
+        'defaultAlert': value,
+      });
+    } catch (e) {
+      debugPrint('Error saving alert type: $e');
+    }
   }
 
-  // Save selected sound.
+  // Save alarm sound.
   Future<void> _saveSound(String value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('alarm_sound', value);
+    setState(() {
+      alarmSound = value;
+    });
 
-    if (!mounted) return;
-    setState(() => alarmSound = value);
+    try {
+      await SettingsService.saveSettings({
+        'alarmSound': value,
+      });
+    } catch (e) {
+      debugPrint('Error saving alarm sound: $e');
+    }
   }
 
   String _radiusLabel(int value) {
     return value == 1000 ? '1 km' : '$value m';
   }
 
-  // Default radius options.
+  // Show radius options.
   void _showRadiusOptions() {
     showModalBottomSheet<void>(
       context: context,
@@ -112,7 +140,7 @@ class _G1SettingsState extends State<G1Settings> {
                 const Text(
                   'Default radius',
                   style: TextStyle(
-                    fontSize: 20,
+                    fontSize: 22,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -122,7 +150,11 @@ class _G1SettingsState extends State<G1Settings> {
                     value: value,
                     groupValue: radius,
                     activeColor: teal,
-                    title: Text(_radiusLabel(value)),
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      _radiusLabel(value),
+                      style: const TextStyle(fontSize: 16),
+                    ),
                     onChanged: (selected) async {
                       if (selected == null) return;
 
@@ -142,7 +174,7 @@ class _G1SettingsState extends State<G1Settings> {
     );
   }
 
-  // Default alert options.
+  // Show alert options.
   void _showAlertOptions() {
     showModalBottomSheet<void>(
       context: context,
@@ -159,7 +191,7 @@ class _G1SettingsState extends State<G1Settings> {
                 const Text(
                   'Default alert',
                   style: TextStyle(
-                    fontSize: 20,
+                    fontSize: 22,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -169,7 +201,11 @@ class _G1SettingsState extends State<G1Settings> {
                     value: value,
                     groupValue: alertType,
                     activeColor: teal,
-                    title: Text(value),
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      value,
+                      style: const TextStyle(fontSize: 16),
+                    ),
                     secondary: Icon(
                       value == 'Message'
                           ? Icons.notifications_outlined
@@ -194,7 +230,7 @@ class _G1SettingsState extends State<G1Settings> {
     );
   }
 
-  // Alarm sound options.
+  // Show alarm sound options.
   void _showSoundOptions() {
     showModalBottomSheet<void>(
       context: context,
@@ -211,7 +247,7 @@ class _G1SettingsState extends State<G1Settings> {
                 const Text(
                   'Alarm sound',
                   style: TextStyle(
-                    fontSize: 20,
+                    fontSize: 22,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -221,7 +257,11 @@ class _G1SettingsState extends State<G1Settings> {
                     value: value,
                     groupValue: alarmSound,
                     activeColor: teal,
-                    title: Text(value),
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      value,
+                      style: const TextStyle(fontSize: 16),
+                    ),
                     secondary: const Icon(Icons.music_note),
                     onChanged: (selected) async {
                       if (selected == null) return;
@@ -242,71 +282,108 @@ class _G1SettingsState extends State<G1Settings> {
     );
   }
 
-  // Open the phone's application settings.
+  // Open phone application settings.
   Future<void> _openPhoneSettings() async {
-    await AppSettings.openAppSettings();
-  }
+    if (kIsWeb) {
+      if (!mounted) return;
 
-  // Firebase logout.
-  Future<void> _logout() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Log out'),
-        content: const Text(
-          'Are you sure you want to log out?',
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Please open your device settings manually.',
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () =>
-                Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: teal,
-            ),
-            onPressed: () =>
-                Navigator.pop(dialogContext, true),
-            child: const Text('Log out'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true) return;
+      );
+      return;
+    }
 
     try {
-      await FirebaseAuth.instance.signOut();
-      // AuthGate should automatically show the
-      // unauthenticated welcome/login screen.
+      await AppSettings.openAppSettings();
     } catch (e) {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Logout failed: $e')),
+        const SnackBar(
+          content: Text('Unable to open phone settings.'),
+        ),
       );
+
+      debugPrint('Error opening app settings: $e');
     }
   }
 
+  // Firebase logout.
+
+Future<void> _logout() async {
+  final confirm = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: const Text('Log out'),
+      content: const Text(
+        'Are you sure you want to log out?',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.pop(dialogContext, false);
+          },
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () {
+            Navigator.pop(dialogContext, true);
+          },
+          child: const Text('Log out'),
+        ),
+      ],
+    ),
+  );
+
+  if (confirm != true) return;
+
+  try {
+  await GeofenceService.stopMonitoring();
+
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setBool('logged_out', true);
+
+  await FirebaseAuth.instance.signOut();
+
+  if (!mounted) return;
+  Navigator.of(context).popUntil((route) => route.isFirst);
+} catch (e) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Logout failed: $e'),
+      ),
+    );
+  }
+}
+
+
+
+  // Section heading.
   Widget _sectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.only(
-        top: 22,
-        bottom: 8,
+        top: 25,
+        bottom: 10,
       ),
       child: Text(
         title.toUpperCase(),
         style: const TextStyle(
-          fontSize: 10,
-          letterSpacing: 0.5,
+          fontSize: 12,
+          letterSpacing: 0.8,
           color: Color(0xFF687875),
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );
   }
 
+  // Setting row.
   Widget _settingRow({
     required IconData icon,
     required String title,
@@ -315,36 +392,38 @@ class _G1SettingsState extends State<G1Settings> {
   }) {
     return InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
       child: SizedBox(
-        height: 45,
+        height: 57,
         child: Row(
           children: [
             Icon(
               icon,
-              size: 19,
+              size: 23,
               color: const Color(0xFF657572),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 14),
             Expanded(
               child: Text(
                 title,
                 style: const TextStyle(
-                  fontSize: 12,
+                  fontSize: 15,
                   fontWeight: FontWeight.w600,
+                  color: Color(0xFF202A28),
                 ),
               ),
             ),
             Text(
               value,
               style: const TextStyle(
-                fontSize: 11,
+                fontSize: 13,
                 color: Color(0xFF4E6260),
               ),
             ),
             const SizedBox(width: 5),
             const Icon(
               Icons.chevron_right,
-              size: 20,
+              size: 23,
               color: Color(0xFF60716F),
             ),
           ],
@@ -353,6 +432,7 @@ class _G1SettingsState extends State<G1Settings> {
     );
   }
 
+  // Permission row.
   Widget _permissionRow({
     required String title,
     required String status,
@@ -362,7 +442,8 @@ class _G1SettingsState extends State<G1Settings> {
     return InkWell(
       onTap: onTap,
       child: Container(
-        height: 43,
+        constraints: const BoxConstraints(minHeight: 53),
+        padding: const EdgeInsets.symmetric(vertical: 7),
         decoration: const BoxDecoration(
           border: Border(
             bottom: BorderSide(
@@ -376,25 +457,27 @@ class _G1SettingsState extends State<G1Settings> {
               child: Text(
                 title,
                 style: const TextStyle(
-                  fontSize: 12,
+                  fontSize: 14,
                   fontWeight: FontWeight.w600,
+                  color: Color(0xFF202A28),
                 ),
               ),
             ),
+            const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 6,
+                horizontal: 16,
+                vertical: 8,
               ),
               decoration: BoxDecoration(
                 color: needsAction ? teal : lightTeal,
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(22),
               ),
               child: Text(
                 status,
                 style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
                   color: needsAction ? Colors.white : teal,
                 ),
               ),
@@ -410,9 +493,12 @@ class _G1SettingsState extends State<G1Settings> {
     final user = FirebaseAuth.instance.currentUser;
 
     if (loading) {
-      return const Center(
-        child: CircularProgressIndicator(
-          color: teal,
+      return const Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(
+          child: CircularProgressIndicator(
+            color: teal,
+          ),
         ),
       );
     }
@@ -426,14 +512,14 @@ class _G1SettingsState extends State<G1Settings> {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(
-                20, 18, 20, 20,
+                20, 20, 20, 22,
               ),
               color: teal,
               child: const Text(
                 'Settings',
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 19,
+                  fontSize: 22,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -442,23 +528,23 @@ class _G1SettingsState extends State<G1Settings> {
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(
-                  14, 14, 14, 20,
+                  16, 16, 16, 24,
                 ),
                 children: [
                   // Account card.
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(15),
                     decoration: BoxDecoration(
                       border: Border.all(
                         color: borderColor,
                       ),
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(16),
                     ),
                     child: Row(
                       children: [
                         Container(
-                          height: 42,
-                          width: 42,
+                          height: 48,
+                          width: 48,
                           decoration: const BoxDecoration(
                             color: lightTeal,
                             shape: BoxShape.circle,
@@ -466,10 +552,10 @@ class _G1SettingsState extends State<G1Settings> {
                           child: const Icon(
                             Icons.person_outline,
                             color: teal,
-                            size: 24,
+                            size: 28,
                           ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 14),
                         Expanded(
                           child: Column(
                             crossAxisAlignment:
@@ -479,16 +565,16 @@ class _G1SettingsState extends State<G1Settings> {
                                 'Your account',
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 12,
+                                  fontSize: 15,
                                 ),
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: 5),
                               Text(
                                 user?.email ??
                                     'No email available',
                                 style: const TextStyle(
                                   color: Color(0xFF657572),
-                                  fontSize: 10,
+                                  fontSize: 12,
                                 ),
                               ),
                             ],
@@ -552,32 +638,34 @@ class _G1SettingsState extends State<G1Settings> {
                     onTap: _openPhoneSettings,
                   ),
 
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 24),
 
                   // Logout button.
                   OutlinedButton.icon(
                     onPressed: _logout,
                     icon: const Icon(
                       Icons.logout,
-                      size: 17,
+                      size: 19,
                       color: Colors.red,
                     ),
                     label: const Text(
                       'Log out',
                       style: TextStyle(
                         color: Colors.red,
-                        fontSize: 13,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                     style: OutlinedButton.styleFrom(
                       minimumSize: const Size(
-                        double.infinity, 44,
+                        double.infinity,
+                        50,
                       ),
                       side: const BorderSide(
                         color: borderColor,
                       ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(25),
+                        borderRadius: BorderRadius.circular(28),
                       ),
                     ),
                   ),

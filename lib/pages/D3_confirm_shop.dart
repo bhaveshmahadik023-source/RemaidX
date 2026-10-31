@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../services/location_guard.dart';
 import '../services/shop_service.dart';
 
 const Color _teal = Color(0xFF117C75);
@@ -48,6 +49,10 @@ class _ConfirmShopPageState extends State<ConfirmShopPage> {
       );
       return;
     }
+
+    // Alerts need GPS, so do not save the reminder while location is off.
+    if (!await LocationGuard.ensureReady(context)) return;
+    if (!mounted) return;
 
     setState(() => _isSaving = true);
 

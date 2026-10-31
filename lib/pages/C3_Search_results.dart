@@ -103,10 +103,11 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
         _results = [];
         _loading = false;
       });
-    } catch (_) {
+    } catch (e) {
       if (!mounted || id != _req) return;
       setState(() {
-        _error = 'Could not search. Check your internet.';
+        // Shows the real reason (key missing, API blocked, no internet...).
+        _error = e.toString().replaceFirst('Exception: ', '');
         _loading = false;
       });
     }
@@ -131,10 +132,11 @@ class _SearchResultsPageState extends State<SearchResultsPage> {
         _suggestions = [];
         _loading = false;
       });
-    } catch (_) {
+    } catch (e) {
       if (!mounted || id != _req) return;
       setState(() {
-        _error = 'Could not search. Check your internet.';
+        // Shows the real reason (key missing, API blocked, no internet...).
+        _error = e.toString().replaceFirst('Exception: ', '');
         _loading = false;
       });
     }

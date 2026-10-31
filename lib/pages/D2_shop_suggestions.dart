@@ -31,6 +31,33 @@ class _ShopSuggestionsPageState extends State<ShopSuggestionsPage> {
   bool _nearestFirst = true;
   late Future<List<Shop>> _shopsFuture;
 
+  static const Set<String> _categoryNames = {
+    'clothes',
+    'shoes',
+    'medicine',
+    'groceries',
+    'electronics',
+    'books',
+    'food',
+    'gifts',
+  };
+
+  // true  = the user searched one of the 8 categories (or nothing special)
+  // false = the user typed something else, like "hospital" or "bank"
+  bool get _isCategorySearch {
+    final q = widget.query.trim().toLowerCase();
+    return q.isEmpty || _categoryNames.contains(q);
+  }
+
+  // Reminder title:
+  //   category search -> "Buy clothes"
+  //   anything else   -> the name of the place the user picked
+  String _taskFor(Shop shop) {
+    return _isCategorySearch
+        ? 'Buy ${widget.category.toLowerCase()}'
+        : shop.name;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -45,7 +72,7 @@ class _ShopSuggestionsPageState extends State<ShopSuggestionsPage> {
 
   void _loadShops() {
     _shopsFuture = _service.findShops(
-      category: widget.category,
+      category: _isCategorySearch ? widget.category : 'Other',
       city: widget.city,
       query: widget.query,
       nearestFirst: _nearestFirst,
@@ -90,7 +117,9 @@ class _ShopSuggestionsPageState extends State<ShopSuggestionsPage> {
       appBar: AppBar(
         backgroundColor: _teal,
         foregroundColor: Colors.white,
-        title: Text('${widget.category} shops TEST'),
+        title: Text(
+          _isCategorySearch ? '${widget.category} shops' : 'Search results',
+        ),
       ),
       body: FutureBuilder<List<Shop>>(
         future: _shopsFuture,
@@ -232,8 +261,7 @@ class _ShopSuggestionsPageState extends State<ShopSuggestionsPage> {
                                 MaterialPageRoute(
                                   builder: (_) => ConfirmShopPage(
                                     shop: shop,
-                                    task:
-                                        'Buy ${widget.category.toLowerCase()}',
+                                    task: _taskFor(shop),
                                   ),
                                 ),
                               );

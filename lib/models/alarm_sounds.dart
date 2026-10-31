@@ -1,20 +1,54 @@
-// One alarm sound the user can choose.
+// lib/models/alarm_sounds.dart
+
 class AlarmSound {
-  final String key; // file name in android/app/src/main/res/raw (no ".wav")
-  final String name; // name shown in the app
-  const AlarmSound(this.key, this.name);
+  final String key;
+  final String name;
+  final String? assetPath;
+
+  const AlarmSound({
+    required this.key,
+    required this.name,
+    this.assetPath,
+  });
 }
 
-const kAlarmSounds = [
-  AlarmSound('morning_bell', 'Morning bell'),
-  AlarmSound('soft_chime', 'Soft chime'),
-  AlarmSound('digital_beep', 'Digital beep'),
-  AlarmSound('default', 'Phone default'), // no file, uses the phone's own sound
+const List<AlarmSound> kAlarmSounds = [
+  AlarmSound(
+    key: 'morning_bell',
+    name: 'Morning bell',
+    assetPath: 'audio/morning_bell.mp3',
+  ),
+  AlarmSound(
+    key: 'soft_chime',
+    name: 'Soft chime',
+    assetPath: 'audio/soft_chime.mp3',
+  ),
+  AlarmSound(
+    key: 'digital_beep',
+    name: 'Digital beep',
+    assetPath: 'audio/digital_beep.mp3',
+  ),
+  AlarmSound(
+    key: 'default',
+    name: 'Phone default',
+    assetPath: 'audio/alarm.mp3',
+  ),
 ];
 
-const kDefaultAlarmSound = 'morning_bell';
+const String kDefaultAlarmSound = 'morning_bell';
 
-// "morning_bell" -> "Morning bell"
-String alarmSoundName(String key) => kAlarmSounds
-    .firstWhere((s) => s.key == key, orElse: () => kAlarmSounds.first)
-    .name;
+String alarmSoundName(String key) {
+  return kAlarmSounds
+      .firstWhere(
+        (sound) => sound.key == key,
+        orElse: () => kAlarmSounds.first,
+      )
+      .name;
+}
+
+AlarmSound alarmSoundByKey(String key) {
+  return kAlarmSounds.firstWhere(
+    (sound) => sound.key == key,
+    orElse: () => kAlarmSounds.first,
+  );
+}

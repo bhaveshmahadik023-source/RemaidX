@@ -5,14 +5,25 @@ import 'package:remindx/pages/A3_Login.dart';
 import 'package:remindx/pages/A4_Sign_up.dart';
 
 class AuthSwitcher extends StatefulWidget {
-  const AuthSwitcher({super.key});
+  final String initialPage;
+
+  const AuthSwitcher({
+    super.key,
+    this.initialPage = 'welcome',
+  });
 
   @override
   State<AuthSwitcher> createState() => _AuthSwitcherState();
 }
 
 class _AuthSwitcherState extends State<AuthSwitcher> {
-  String _currentPage = 'welcome';
+  late String _currentPage;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentPage = widget.initialPage;
+  }
 
   @override
   Widget build(BuildContext context) {

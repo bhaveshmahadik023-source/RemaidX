@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 
-import 'places_service.dart'; // uses kGoogleApiKey from this file
+import 'places_service.dart';
 
 class Shop {
   final String id;
@@ -29,46 +29,62 @@ class Shop {
   });
 }
 
-// Finds real shops using Google Places (New) Text Search.
-// Example: category "Clothes" + city "Pune" -> "clothes shop in Pune".
-// findShops() keeps the same name and parameters as before,
-// so D1, D2 and D3 do not need any changes.
 class ShopService {
   static const String _searchUrl =
       'https://places.googleapis.com/v1/places:searchText';
+
+  final http.Client _client;
+
+  ShopService({http.Client? client}) : _client = client ?? http.Client();
 
   Future<List<Shop>> findShops({
     required String category,
     required String city,
     required String query,
     required bool nearestFirst,
+    double? centerLat,
+    double? centerLng,
   }) async {
     final area = city.trim();
 
-    if (area.isEmpty) {
-      throw Exception('Please enter a city or area.');
-    }
-
-    if (kGoogleApiKey.trim().isEmpty ||
-        kGoogleApiKey.startsWith('PASTE_')) {
-      throw Exception(
-        'Google API key is missing (add it at the top of places_service.dart).',
+    if ((centerLat == null) != (centerLng == null)) {
+      throw ArgumentError(
+        'Both centerLat and centerLng must be provided together.',
       );
     }
 
-    final position = await _getCurrentPosition();
+    if (kGoogleApiKey.trim().isEmpty || kGoogleApiKey.startsWith('PASTE_')) {
+      throw Exception('Google API key is missing in places_service.dart.');
+    }
+
+    if (centerLat != null &&
+        centerLng != null &&
+        (!centerLat.isFinite ||
+            !centerLng.isFinite ||
+            centerLat < -90 ||
+            centerLat > 90 ||
+            centerLng < -180 ||
+            centerLng > 180)) {
+      throw ArgumentError('The selected location is invalid.');
+    }
+
+    if (area.isEmpty && centerLat == null) {
+      throw Exception('Enter a city or area, or select a location on the map.');
+    }
+
     final term = _searchTerm(category, query);
-    final textQuery = '$term in $area';
+    final textQuery = area.isEmpty ? term : '$term in $area';
 
     debugPrint('Google shop search: "$textQuery"');
 
-    final response = await http
+    final response = await _client
         .post(
           Uri.parse(_searchUrl),
           headers: {
             'Content-Type': 'application/json',
             'X-Goog-Api-Key': kGoogleApiKey,
-            'X-Goog-FieldMask': 'places.id,places.displayName,'
+            'X-Goog-FieldMask':
+                'places.id,places.displayName,'
                 'places.formattedAddress,places.location,'
                 'places.businessStatus',
           },
@@ -77,74 +93,102 @@ class ShopService {
             'maxResultCount': 20,
             'languageCode': 'en',
             'regionCode': 'IN',
+            if (centerLat != null && centerLng != null)
+              'locationBias': {
+                'circle': {
+                  'center': {'latitude': centerLat, 'longitude': centerLng},
+                  'radius': 10000.0,
+                },
+              },
           }),
         )
         .timeout(const Duration(seconds: 20));
 
-    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final decoded = jsonDecode(response.body);
 
-    if (response.statusCode != 200) {
-      throw Exception(
-        (body['error']?['message'] ?? 'Error ${response.statusCode}')
-            .toString(),
-      );
+    if (decoded is! Map<String, dynamic>) {
+      throw Exception('Invalid response from Google Places API.');
     }
 
-    final places = (body['places'] as List?) ?? [];
+    if (response.statusCode != 200) {
+      final error = decoded['error'];
+      final message = error is Map ? error['message']?.toString() : null;
+
+      throw Exception(message ?? 'Google Places error ${response.statusCode}.');
+    }
+
+    final places = decoded['places'] as List? ?? [];
+
     debugPrint('Google places received: ${places.length}');
 
-    // Read the shops first, without distances.
     final raw = <_RawShop>[];
     final seen = <String>{};
 
     for (final item in places) {
-      final p = item as Map<String, dynamic>;
+      if (item is! Map<String, dynamic>) continue;
 
-      // Skip shops that are closed for good.
-      if (p['businessStatus'] == 'CLOSED_PERMANENTLY') continue;
+      if (item['businessStatus'] == 'CLOSED_PERMANENTLY') {
+        continue;
+      }
 
-      final name = (p['displayName']?['text'] ?? '').toString().trim();
-      final loc = p['location'] as Map<String, dynamic>?;
-      if (name.isEmpty || loc == null) continue;
+      final name = (item['displayName']?['text'] ?? '').toString().trim();
 
-      final id = (p['id'] ?? '').toString();
+      final location = item['location'] as Map<String, dynamic>?;
+
+      if (name.isEmpty || location == null) continue;
+
+      final id = (item['id'] ?? '').toString();
+
       if (id.isEmpty || !seen.add(id)) continue;
 
-      raw.add(_RawShop(
-        id: id,
-        name: name,
-        address: (p['formattedAddress'] ?? area).toString(),
-        lat: (loc['latitude'] as num).toDouble(),
-        lng: (loc['longitude'] as num).toDouble(),
-      ));
+      final latitude = location['latitude'];
+      final longitude = location['longitude'];
+
+      if (latitude is! num || longitude is! num) continue;
+
+      raw.add(
+        _RawShop(
+          id: id,
+          name: name,
+          address: (item['formattedAddress'] ?? area).toString(),
+          lat: latitude.toDouble(),
+          lng: longitude.toDouble(),
+        ),
+      );
     }
 
     if (raw.isEmpty) return [];
 
-    // Distance is measured from the user's GPS position.
-    // If GPS is not available, use the middle of the results instead.
-    final fromLat = position?.latitude ??
-        raw.map((s) => s.lat).reduce((a, b) => a + b) / raw.length;
-    final fromLng = position?.longitude ??
-        raw.map((s) => s.lng).reduce((a, b) => a + b) / raw.length;
+    // Prefer the selected map location, otherwise use device GPS.
+    Position? position;
 
-    final results = [
-      for (final s in raw)
+    if (centerLat == null || centerLng == null) {
+      position = await _getCurrentPosition();
+    }
+
+    final fromLat =
+        centerLat ??
+        position?.latitude ??
+        _average(raw.map((shop) => shop.lat));
+
+    final fromLng =
+        centerLng ??
+        position?.longitude ??
+        _average(raw.map((shop) => shop.lng));
+
+    final results = <Shop>[
+      for (final shop in raw)
         Shop(
-          id: s.id,
-          name: s.name,
+          id: shop.id,
+          name: shop.name,
           category: category,
-          address: s.address,
+          address: shop.address,
           city: area,
-          distanceKm: Geolocator.distanceBetween(
-                fromLat,
-                fromLng,
-                s.lat,
-                s.lng,
-              ) /
+          distanceKm:
+              Geolocator.distanceBetween(fromLat, fromLng, shop.lat, shop.lng) /
               1000,
-          lat: s.lat,
-          lng: s.lng,
+          lat: shop.lat,
+          lng: shop.lng,
         ),
     ];
 
@@ -159,13 +203,13 @@ class ShopService {
     return results;
   }
 
-  // If the user typed something different from the category chip,
-  // search for that. Otherwise use a good Google search word for the category.
   String _searchTerm(String category, String query) {
     final q = query.trim();
     final cat = category.trim().toLowerCase();
 
-    if (q.isNotEmpty && q.toLowerCase() != cat) return q;
+    if (q.isNotEmpty && q.toLowerCase() != cat) {
+      return q;
+    }
 
     switch (cat) {
       case 'clothes':
@@ -196,6 +240,7 @@ class ShopService {
   Future<Position?> _getCurrentPosition() async {
     try {
       final enabled = await Geolocator.isLocationServiceEnabled();
+
       if (!enabled) return null;
 
       var permission = await Geolocator.checkPermission();
@@ -214,9 +259,22 @@ class ShopService {
           accuracy: LocationAccuracy.high,
         ),
       ).timeout(const Duration(seconds: 12));
-    } catch (_) {
+    } catch (error) {
+      debugPrint('Could not get current position: $error');
       return null;
     }
+  }
+
+  double _average(Iterable<double> values) {
+    final list = values.toList();
+
+    if (list.isEmpty) return 0;
+
+    return list.reduce((a, b) => a + b) / list.length;
+  }
+
+  void dispose() {
+    _client.close();
   }
 }
 

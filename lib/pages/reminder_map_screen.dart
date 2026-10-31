@@ -10,7 +10,7 @@ import 'package:http/http.dart' as http;
 // ---------------------------------------------------------------
 // PASTE YOUR ROUTES API KEY HERE (the one created in Google Cloud).
 // ---------------------------------------------------------------
-const String kRoutesApiKey = 'AIzaSyBZQ_lI0BHgAOrEVfTY7Q6W9w9-pFfe1Ds';
+const String kRoutesApiKey = 'AIzaSyCk2n-MTsKN2uE-2h0qweZCz-AV0g36034';
 
 // One turn / instruction (from the Routes API).
 class _Step {

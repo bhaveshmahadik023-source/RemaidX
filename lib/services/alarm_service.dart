@@ -1,16 +1,16 @@
-// File: lib/services/alarm_service.dart
-
+import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:alarm/alarm.dart'
+    show Alarm, AlarmSettings, NotificationSettings, VolumeSettings;
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:timezone/data/latest_all.dart' as tzdata;
-import 'package:timezone/timezone.dart' as tz;
 
+import '../models/alarm_sounds.dart';
 import '../models/reminder.dart';
 import '../pages/E3_Alarm_ringing.dart';
-import 'reminder_service.dart';
+import 'notification.dart';
 
 /// Data required to schedule and display a daily alarm.
 class AlarmData {
@@ -64,8 +64,7 @@ class AlarmData {
   factory AlarmData.fromPayload(String payload) {
     final decoded = jsonDecode(payload);
 
-    if (decoded is! Map<String, dynamic> ||
-        decoded['kind'] != 'daily') {
+    if (decoded is! Map<String, dynamic> || decoded['kind'] != 'daily') {
       throw const FormatException('Not a daily alarm payload');
     }
 
@@ -89,27 +88,38 @@ class AlarmData {
   }
 }
 
-/// Daily alarm and notification service.
+/// Daily alarm service.
+///
+/// The alarm itself (sound, vibration, full-screen pop-up, Stop button) is
+/// run by the native "alarm" package. It uses an Android foreground service
+/// and exact AlarmManager scheduling, so it rings even when the app is in the
+/// background or closed, without the user tapping anything.
+///
+/// This class also sets up the notification plugin used by location reminders.
 class AlarmService {
   static final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
 
-  /// IMPORTANT: Assign this key to MaterialApp.navigatorKey.
+  /// Assign this key to MaterialApp.navigatorKey.
   static final GlobalKey<NavigatorState> navigatorKey =
       GlobalKey<NavigatorState>();
 
   static bool _initialized = false;
   static bool _ringOpen = false;
   static AlarmData? _pendingAlarm;
+  static StreamSubscription? _ringingSub;
 
-  /// Initialize notifications and timezone.
+  // Ids of the alarms that are ringing right now.
+  static final Set<int> _ringingIds = {};
+
+  // How many weeks ahead alarms are scheduled. The alarm package has no
+  // "repeat every week", so every coming occurrence is scheduled in advance.
+  // Opening the app (or editing the alarm) schedules the next weeks again.
+  static const int _weeksAhead = 8;
+
+  /// Initialize notifications and the alarm service.
   static Future<void> init() async {
     if (_initialized || kIsWeb) return;
-
-    tzdata.initializeTimeZones();
-
-    // India timezone. Change this if the app must support other timezones.
-    tz.setLocalLocation(tz.getLocation('Asia/Kolkata'));
 
     const androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -125,21 +135,52 @@ class AlarmService {
       iOS: iosSettings,
     );
 
-   await _plugin.initialize(
-  settings: settings,
-  onDidReceiveNotificationResponse: _onNotificationResponse,
-);
-    _initialized = true;
+    // The notification plugin is shared with location reminders.
+    // This is the ONE place that initializes it.
+    await _plugin.initialize(
+      settings: settings,
+      onDidReceiveNotificationResponse: (response) {
+        final payload = response.payload;
 
-    final launchDetails = await _plugin.getNotificationAppLaunchDetails();
+        if (payload != null && payload.startsWith('{')) {
+          _onNotificationResponse(response);
+        } else {
+          // Location reminder (Ring / Message): Stop button and taps.
+          NotificationService.handleResponse(response);
+        }
+      },
+    );
 
-    if (launchDetails?.didNotificationLaunchApp ?? false) {
-      final payload = launchDetails?.notificationResponse?.payload;
+    // Native alarm service.
+    await Alarm.init();
 
-      if (payload != null && payload.isNotEmpty) {
-        _handlePayload(payload);
+    await _ringingSub?.cancel();
+    _ringingSub = Alarm.ringing.listen((alarmSet) {
+      _ringingIds
+        ..clear()
+        ..addAll(alarmSet.alarms.map((a) => a.id));
+
+      // Nothing is ringing any more (for example "Stop" was tapped on the
+      // alarm notification): close the ringing screen.
+      if (alarmSet.alarms.isEmpty) {
+        if (_ringOpen) {
+          _ringOpen = false;
+          navigatorKey.currentState?.pop();
+        }
+        return;
       }
-    }
+
+      // An alarm started ringing: show the ringing screen.
+      for (final alarm in alarmSet.alarms) {
+        final payload = alarm.payload;
+        if (payload == null || payload.isEmpty) continue;
+
+        _handlePayload(payload);
+        break;
+      }
+    });
+
+    _initialized = true;
   }
 
   /// Request notification and exact-alarm permissions.
@@ -148,32 +189,24 @@ class AlarmService {
 
     await init();
 
-    final android = _plugin.resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>();
+    final android = _plugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
 
     await android?.requestNotificationsPermission();
     await android?.requestExactAlarmsPermission();
 
-    final ios = _plugin.resolvePlatformSpecificImplementation<
-        IOSFlutterLocalNotificationsPlugin>();
+    final ios = _plugin
+        .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin>();
 
     await ios?.requestPermissions(
       alert: true,
       badge: true,
       sound: true,
     );
-
-    final macos = _plugin.resolvePlatformSpecificImplementation<
-        MacOSFlutterLocalNotificationsPlugin>();
-
-    await macos?.requestPermissions(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
   }
 
-  /// Handle a notification tapped by the user.
   static void _onNotificationResponse(NotificationResponse response) {
     final payload = response.payload;
 
@@ -187,11 +220,10 @@ class AlarmService {
       final data = AlarmData.fromPayload(payload);
       _open(data);
     } catch (e) {
-      debugPrint('Unable to open alarm notification: $e');
+      debugPrint('Unable to open alarm screen: $e');
     }
   }
 
-  /// Open the ringing page. If navigation is not ready, keep it pending.
   static void _open(AlarmData data) {
     final navigator = navigatorKey.currentState;
 
@@ -212,7 +244,7 @@ class AlarmService {
     );
   }
 
-  /// Call after the app's first screen is ready to handle a pending alarm.
+  /// Open a pending alarm after navigation is ready.
   static void openLaunchAlarmIfAny() {
     final data = _pendingAlarm;
 
@@ -226,7 +258,9 @@ class AlarmService {
     _ringOpen = false;
   }
 
-  /// Generate a stable group of notification IDs for each reminder.
+  // ---------------- Ids ----------------
+
+  /// Stable base number for each reminder.
   static int _baseId(String id) {
     var hash = 0;
 
@@ -237,160 +271,197 @@ class AlarmService {
     return hash;
   }
 
-  static int _dayNotificationId(String id, int weekday) {
-    return _baseId(id) * 10 + weekday;
+  // weekday: 1..7, week: 0.._weeksAhead-1  ->  unique alarm id
+  static int _alarmId(String id, int weekday, int week) {
+    return _baseId(id) * 100 + weekday * 10 + week;
   }
 
-  static int _snoozeNotificationId(String id) {
-    return _baseId(id) * 10 + 8;
+  static int _snoozeAlarmId(String id) {
+    return _baseId(id) * 100 + 90;
   }
 
-  /// Cancel all weekly alarm notifications and its snooze notification.
+  // ---------------- Scheduling ----------------
+
+  /// Cancel all scheduled alarms (and the snooze) of one reminder.
   static Future<void> _cancelScheduled(String id) async {
     if (kIsWeb) return;
 
     await init();
 
-    for (var day = 1; day <= 7; day++) {
-      await _plugin.cancel(
-  id: _dayNotificationId(id, day),
-);
+    for (var weekday = 1; weekday <= 7; weekday++) {
+      for (var week = 0; week < _weeksAhead; week++) {
+        await Alarm.stop(_alarmId(id, weekday, week));
+      }
     }
 
-   await _plugin.cancel(
-  id: _snoozeNotificationId(id),
-);
+    await Alarm.stop(_snoozeAlarmId(id));
   }
 
-  /// Find the next occurrence of a selected weekday and time.
-  static tz.TZDateTime _nextOccurrence(
-    int weekday,
-    int hour,
-    int minute,
-  ) {
-    final now = tz.TZDateTime.now(tz.local);
+  /// Cancel an alarm from the Home page.
+  static Future<void> cancel(String id) async {
+    await _cancelScheduled(id);
+    debugPrint('ALARM: cancelled alarm id=$id');
+  }
 
-    var result = tz.TZDateTime(
-      tz.local,
-      now.year,
-      now.month,
-      now.day,
-      hour,
-      minute,
-    );
+  /// Next date of a weekday at a given time (local phone time).
+  static DateTime _nextOccurrence(int weekday, int hour, int minute) {
+    final now = DateTime.now();
+
+    var result = DateTime(now.year, now.month, now.day, hour, minute);
 
     while (result.weekday != weekday || !result.isAfter(now)) {
-      result = result.add(const Duration(days: 1));
+      result = DateTime(
+        result.year,
+        result.month,
+        result.day + 1,
+        hour,
+        minute,
+      );
     }
 
     return result;
   }
 
-  static NotificationDetails _notificationDetails(AlarmData data) {
-    final androidDetails = AndroidNotificationDetails(
-      'remindx_daily_alarms',
-      'Daily alarms',
-      channelDescription: 'Scheduled reminders from RemindX',
-      importance: Importance.max,
-      priority: Priority.max,
-      category: AndroidNotificationCategory.alarm,
-      fullScreenIntent: true,
-      playSound: true,
-      autoCancel: false,
-      visibility: NotificationVisibility.public,
-    );
+  static AlarmSettings _settings({
+    required int id,
+    required DateTime dateTime,
+    required AlarmData data,
+    String body = 'Your daily alarm is ringing.',
+  }) {
+    // The sound chosen for this alarm. The alarm package needs the full
+    // asset path (it starts with "assets/").
+    final path = alarmSoundByKey(data.sound).assetPath;
 
-    const iosDetails = DarwinNotificationDetails(
-      presentAlert: true,
-      presentBadge: true,
-      presentSound: true,
-      interruptionLevel: InterruptionLevel.timeSensitive,
-    );
+    final String? assetPath = (path == null || path.isEmpty)
+        ? null // null = the phone's default alarm sound
+        : (path.startsWith('assets/') ? path : 'assets/$path');
 
-    return NotificationDetails(
-      android: androidDetails,
-      iOS: iosDetails,
+    return AlarmSettings(
+      id: id,
+      dateTime: dateTime,
+      assetAudioPath: assetPath,
+      loopAudio: true,
+      vibrate: true,
+      warningNotificationOnKill: false,
+      androidFullScreenIntent: true,
+      // Keep ringing even if the app is swiped away from recent apps.
+      androidStopAlarmOnTermination: false,
+      payload: data.toPayload(),
+      volumeSettings: VolumeSettings.fade(
+        volume: 0.9,
+        fadeDuration: const Duration(seconds: 3),
+        volumeEnforced: true,
+      ),
+      notificationSettings: NotificationSettings(
+        title: data.title,
+        body: body,
+        stopButton: 'Stop',
+      ),
     );
   }
 
-  /// Schedule a repeating alarm for the selected weekdays.
+  /// Schedule the alarm for the selected weekdays (the next few weeks).
   static Future<void> schedule(AlarmData data) async {
+    debugPrint('ALARM: schedule() started');
+
     if (kIsWeb) {
-      debugPrint('Local alarm scheduling is not supported on web.');
+      debugPrint('ALARM: running on web, alarms are not supported');
       return;
     }
 
-    await ensurePermissions();
-    await _cancelScheduled(data.id);
+    try {
+      await ensurePermissions();
 
-    final selectedDays = data.days.toSet().toList()..sort();
+      await _cancelScheduled(data.id);
 
-    for (final weekday in selectedDays) {
-      if (weekday < 1 || weekday > 7) continue;
+      final selectedDays = data.days.toSet().toList()..sort();
 
-      final scheduledDate = _nextOccurrence(
-        weekday,
-        data.hour,
-        data.minute,
+      debugPrint(
+        'ALARM: id=${data.id}, days=$selectedDays, '
+        'time=${data.hour}:${data.minute}',
       );
 
-final minutes = data.snoozeMin > 0 ? data.snoozeMin : 10;
+      if (selectedDays.isEmpty) {
+        debugPrint('ALARM: no weekdays selected');
+        return;
+      }
 
-final nextTime = tz.TZDateTime.now(tz.local).add(
-  Duration(minutes: minutes),
-);
+      for (final weekday in selectedDays) {
+        if (weekday < DateTime.monday || weekday > DateTime.sunday) {
+          debugPrint('ALARM: invalid weekday=$weekday');
+          continue;
+        }
 
-await _plugin.zonedSchedule(
-  id: _snoozeNotificationId(data.id),
-  title: data.title,
-  body: 'Snoozed reminder',
-  scheduledDate: scheduledDate,
-  notificationDetails: _notificationDetails(data),
-  androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-  payload: data.toPayload(),
-);
+        final first = _nextOccurrence(weekday, data.hour, data.minute);
+
+        for (var week = 0; week < _weeksAhead; week++) {
+          final when = DateTime(
+            first.year,
+            first.month,
+            first.day + 7 * week,
+            data.hour,
+            data.minute,
+          );
+
+          await Alarm.set(
+            alarmSettings: _settings(
+              id: _alarmId(data.id, weekday, week),
+              dateTime: when,
+              data: data,
+            ),
+          );
+        }
+
+        debugPrint('ALARM: scheduled weekday=$weekday from $first');
+      }
+    } catch (e, st) {
+      debugPrint('ALARM ERROR: $e');
+      debugPrint('$st');
+      rethrow;
     }
   }
 
-/// Snooze the current alarm and show it again after snoozeMin minutes.
-static Future<void> snooze(AlarmData data) async {
-  if (kIsWeb) return;
+  // Stops every alarm that is ringing right now.
+  static Future<void> _stopRinging() async {
+    for (final id in List<int>.from(_ringingIds)) {
+      await Alarm.stop(id);
+    }
+    _ringingIds.clear();
+  }
 
-  await ensurePermissions();
+  /// Snooze the current alarm.
+  static Future<void> snooze(AlarmData data) async {
+    if (kIsWeb) return;
 
-  final minutes = data.snoozeMin > 0 ? data.snoozeMin : 10;
+    // The ringing screen closes itself, so do not close it twice.
+    _ringOpen = false;
 
-  final nextTime = tz.TZDateTime.now(tz.local).add(
-    Duration(minutes: minutes),
-  );
+    await _stopRinging();
 
-  await _plugin.cancel(
-    id: _snoozeNotificationId(data.id),
-  );
+    final minutes = data.snoozeMin > 0 ? data.snoozeMin : 10;
+    final next = DateTime.now().add(Duration(minutes: minutes));
 
-  await _plugin.zonedSchedule(
-    id: _snoozeNotificationId(data.id),
-    title: data.title,
-    body: 'Snoozed reminder',
-    scheduledDate: nextTime,
-    notificationDetails: _notificationDetails(data),
-    androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-    payload: data.toPayload(),
-  );
+    await Alarm.set(
+      alarmSettings: _settings(
+        id: _snoozeAlarmId(data.id),
+        dateTime: next,
+        data: data,
+        body: 'Snoozed reminder',
+      ),
+    );
 
-  _ringOpen = false;
-}
+    debugPrint('ALARM: snoozed until $next');
+  }
 
-  /// Dismiss the alarm, cancel its schedules and mark the reminder done.
+  /// Dismiss the current alarm (and any pending snooze).
   static Future<void> dismiss(AlarmData data) async {
-    await _cancelScheduled(data.id);
+    if (kIsWeb) return;
 
     _ringOpen = false;
 
-    try {
-      await ReminderService().setStatus(data.id, 'done');
-    } catch (e) {
-      debugPrint('Could not update reminder status: $e');
-    }
+    await _stopRinging();
+    await Alarm.stop(_snoozeAlarmId(data.id));
+
+    debugPrint('ALARM: dismissed ${data.id}');
   }
 }

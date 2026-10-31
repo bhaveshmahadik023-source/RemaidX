@@ -11,7 +11,7 @@ import '../models/place.dart';
 // The key's API restrictions must include:
 //   Places API (New)  and  Geocoding API
 // ---------------------------------------------------------------
-const String kGoogleApiKey = 'AIzaSyBZQ_lI0BHgAOrEVfTY7Q6W9w9-pFfe1Ds';
+const String kGoogleApiKey = 'AIzaSyCk2n-MTsKN2uE-2h0qweZCz-AV0g36034';
 
 /// A suggestion shown while typing (no lat/lng yet; we get it after the user picks one).
 class PlaceSuggestion {

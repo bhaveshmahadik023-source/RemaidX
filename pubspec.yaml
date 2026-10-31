@@ -44,15 +44,15 @@ dependencies:
   http: ^1.6.0
   geolocator: ^14.0.1
   url_launcher: ^6.3.3
-  flutter_local_notifications: ^22.3.2
+  flutter_local_notifications: ^22.3.2  
   google_maps_flutter: ^2.18.1
   geocoding: ^5.0.0
   flutter_polyline_points: ^3.1.0
-
-  flutter_local_notifications: ^22.3.2
   app_settings: ^9.0.0
   timezone: ^0.11.2
-
+  audioplayers: ^6.8.1
+  flutter_ringtone_player_plus: ^1.0.0
+  alarm: ^5.15.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -69,12 +69,10 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
-
-  # The following line ensures that the Material Icons font is
-  # included with your application, so that you can use the icons in
-  # the material Icons class.
   uses-material-design: true
 
+  assets:
+    - assets/audio/
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg

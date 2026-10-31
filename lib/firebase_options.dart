@@ -41,7 +41,7 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyDjuR8w5fZmUpnkOtig_tT9LNxU9V0rDdU',
+    apiKey: 'AIzaSyBZQ_lI0BHgAOrEVfTY7Q6W9w9-pFfe1Ds',
     appId: '1:717752141776:web:15cc534cf78cd9cfbe5bd5',
     messagingSenderId: '717752141776',
     projectId: 'geonotify-2beb5',

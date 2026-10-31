@@ -6,7 +6,6 @@ import '../constants.dart';
 import '../models/place.dart';
 import '../services/location_service.dart';
 import '../services/places_service.dart';
-import '../widgets/map_pin.dart';
 import '../widgets/common.dart'; // PrimaryButton
 import 'C3_Search_results.dart';
 

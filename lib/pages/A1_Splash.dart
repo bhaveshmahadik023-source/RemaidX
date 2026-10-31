@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:remindx/pages/auth_switcher.dart';
+import 'package:remindx/pages/auth_gate.dart';
 import '../constants.dart';
-import 'auth_gate.dart';
+
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -10,15 +10,19 @@ class SplashPage extends StatefulWidget {
 }
 
 class _SplashPageState extends State<SplashPage> {
-  @override
-  void initState() {
-    super.initState();
-    Future.delayed(const Duration(seconds: 2), () {
-      if (!mounted) return;
-      Navigator.pushReplacement(
-          context, MaterialPageRoute(builder: (_) => const AuthSwitcher()));
-    });
-  }
+ @override
+void initState() {
+  super.initState();
+
+  Future.delayed(const Duration(seconds: 2), () {
+    if (!mounted) return;
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const AuthGate()),
+    );
+  });
+}
 
   @override
   Widget build(BuildContext context) {
